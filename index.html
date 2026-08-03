@@ -463,6 +463,12 @@
     <div class="section-title" data-i18n="sectionBalances">остатки</div>
     <div class="savings-grid" id="savingsGrid"></div>
 
+    <div class="section-title" data-i18n="sectionSavingsPeriod">за период</div>
+    <div class="month-summary" style="grid-template-columns: repeat(2,1fr);">
+      <div class="sum-card"><span class="k" data-i18n="kDeposited">Внесено</span><span class="v" id="savDeposited" style="color:var(--green-c)">0.00</span></div>
+      <div class="sum-card"><span class="k" data-i18n="kWithdrawn">Снято</span><span class="v" id="savWithdrawn" style="color:var(--red-c)">0.00</span><span class="carry-note" id="savPeriodNote"></span></div>
+    </div>
+
     <div class="section-title" data-i18n="sectionConverted">в пересчёте</div>
     <div class="cur-select-row" id="savingsCurrencySelector"></div>
     <div class="donut-wrap" id="savingsDonutWrap"></div>
@@ -630,6 +636,7 @@
       sectionMonth:'за месяц', kIncome:'Доходы', kExpense:'Расходы', kBalance:'Баланс',
       sectionExpenseBreakdown:'на что уходит', sectionIncomeBreakdown:'откуда приходит',
       sectionBalances:'остатки', btnDeposit:'+ ВНЕСТИ', btnWithdraw:'− ЗАБРАТЬ',
+      sectionSavingsPeriod:'за период', kDeposited:'Внесено', kWithdrawn:'Снято',
       sectionHistory:'история операций', emptySavings:'пока нет отложенных сумм',
       footnote:'файл автономный — данные хранятся прямо в этом браузере',
       backupExport:'⇩ резервная копия', backupImport:'⇧ восстановить из файла',
@@ -663,6 +670,7 @@
       sectionMonth:'this month', kIncome:'Income', kExpense:'Expense', kBalance:'Balance',
       sectionExpenseBreakdown:'where it goes', sectionIncomeBreakdown:'where it comes from',
       sectionBalances:'balances', btnDeposit:'+ DEPOSIT', btnWithdraw:'− WITHDRAW',
+      sectionSavingsPeriod:'this period', kDeposited:'Deposited', kWithdrawn:'Withdrawn',
       sectionHistory:'history', emptySavings:'no savings entries yet',
       footnote:'this file is standalone — data lives only in this browser',
       backupExport:'⇩ backup', backupImport:'⇧ restore from file',
@@ -895,6 +903,7 @@
     renderSavingsGrid();
     renderSavingsHistory();
     renderSavingsConverted();
+    renderSavingsPeriodSummary();
   }
 
   function renderMonthLabel(){
@@ -1095,6 +1104,12 @@
     return Array.from(set);
   }
 
+  // Savings entries dated within the same custom period currently selected in the ledger view.
+  function periodSavingsEntries(){
+    const { start, end } = getPeriodRange(selectedDate);
+    return savingsEntries.filter(e=>{ const d = new Date(e.date+'T00:00:00'); return d >= start && d <= end; });
+  }
+
   function renderSavingsGrid(){
     const grid = document.getElementById('savingsGrid');
     const currencies = currenciesInUse();
@@ -1142,7 +1157,28 @@
 
   function removeSavingsEntry(id, rowEl){
     rowEl.classList.add('voiding');
-    setTimeout(()=>{ savingsEntries = savingsEntries.filter(e=>e.id!==id); persistSavings(); renderSavingsGrid(); renderSavingsHistory(); }, 320);
+    setTimeout(()=>{ savingsEntries = savingsEntries.filter(e=>e.id!==id); persistSavings(); renderSavingsGrid(); renderSavingsHistory(); renderSavingsPeriodSummary(); }, 320);
+  }
+
+  // Sums this period's savings deposits/withdrawals, converted into the chosen display
+  // currency so mixed-currency activity still rolls up into one comparable number.
+  function renderSavingsPeriodSummary(){
+    const pe = periodSavingsEntries();
+    let deposited = 0, withdrawn = 0, excluded = false;
+    pe.forEach(e=>{
+      const converted = convertAmount(e.amount, e.currency, displayCurrency);
+      if(converted == null){ excluded = true; return; }
+      if(e.type==='in') deposited += converted; else withdrawn += converted;
+    });
+    const depEl = document.getElementById('savDeposited');
+    const witEl = document.getElementById('savWithdrawn');
+    if(depEl) depEl.textContent = fmt(deposited);
+    if(witEl) witEl.textContent = fmt(withdrawn);
+    const noteEl = document.getElementById('savPeriodNote');
+    if(noteEl){
+      if(excluded){ noteEl.textContent = t('displayCurrencyNote'); noteEl.classList.add('show'); }
+      else{ noteEl.textContent = ''; noteEl.classList.remove('show'); }
+    }
   }
 
   /* ---- Sheet (add entry) ---- */
@@ -1339,6 +1375,7 @@
     closeSavingsSheet();
     renderSavingsGrid();
     renderSavingsHistory();
+    renderSavingsPeriodSummary();
   });
 
   document.querySelectorAll('[data-action="open-savings"]').forEach(btn=>{
@@ -1545,6 +1582,7 @@
           try{ localStorage.setItem('lenta_displayCurrency', cur); }catch(e){}
           renderDisplayCurrencyOptions();
           renderSavingsConverted();
+          renderSavingsPeriodSummary();
         });
         row.appendChild(btn);
       });
