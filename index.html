@@ -24,7 +24,6 @@
     --red-bg: rgba(178,58,46,.14);
     --paper-shadow: 0 30px 60px -25px rgba(0,0,0,.55);
 
-    /* ---- theme chrome tokens (overridden per [data-theme]) ---- */
     --page-bg: var(--ink);
     --fg: var(--paper);
     --fg-muted: #8d8574;
@@ -45,12 +44,10 @@
     --red-c: var(--red);
     --red-c-bg: var(--red-bg);
 
-    /* the paper receipt/sheet always keeps this warm accent, independent of the page theme */
     --sheet-accent: #C9A227;
     --sheet-accent-soft: rgba(201,162,39,.18);
   }
 
-  /* ==== THEMES ==== */
   html[data-theme="day"]{
     --page-bg: linear-gradient(160deg,#FBF6EA 0%, #F0E6CF 100%);
     --fg: #241F14; --fg-muted:#7a7160; --fg-muted-2:#8f8672; --fg-faint:#a49c86;
@@ -93,7 +90,6 @@
     --gold:#DBFF74; --gold-soft: rgba(219,255,116,.22);
   }
 
-  /* ---- Theme picker UI ---- */
   .theme-fab{
     position: fixed; z-index: 20; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom));
     width: 44px; height:44px; border-radius:50%; border: 1px solid var(--surface-border-2);
@@ -275,7 +271,6 @@
   .backup-btn{ background:none; border:none; color:var(--fg-muted); font-family:'Space Mono',monospace; font-size: 10px; letter-spacing:.5px; text-decoration: underline; cursor:pointer; padding:4px; }
   .backup-btn:hover{ color: var(--gold); }
 
-  /* ---- Bottom sheet ---- */
   .sheet-overlay{ position:fixed; inset:0; background: rgba(10,9,13,.6); display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none; transition: opacity .2s ease; z-index: 10; }
   .sheet-overlay.open{ opacity:1; pointer-events:auto; }
   .sheet{ width:100%; max-width: 460px; box-sizing: border-box; background: var(--paper); color: var(--text); border-radius: 22px 22px 0 0; padding: 10px 22px calc(26px + env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform .28s cubic-bezier(.2,.8,.2,1), margin-bottom .2s ease; max-height: 86dvh; overflow-y:auto; overscroll-behavior: contain; }
@@ -315,12 +310,10 @@
   input:focus-visible, button:focus-visible{ outline: 2px solid var(--gold); outline-offset: 2px; }
   .sheet input:focus-visible, .sheet button:focus-visible{ outline-color: var(--sheet-accent); }
 
-  /* ---- Tabs ---- */
   .tab-bar{ position:relative; z-index:1; display:flex; gap:8px; margin-bottom: 22px; }
   .tab-btn{ flex:1; padding: 10px 0; border-radius: 999px; border: 1px solid var(--surface-3); background: var(--surface); color:var(--fg-muted); font-family:'Space Mono',monospace; font-size:11px; letter-spacing:1.5px; font-weight:700; cursor:pointer; transition: border-color .15s, background .15s, color .15s; }
   .tab-btn.active{ border-color: var(--gold); background: var(--gold-soft); color: var(--gold); }
 
-  /* ---- Savings view ---- */
   .savings-grid{ position:relative; z-index:1; display:grid; grid-template-columns: repeat(2,1fr); gap:10px; margin-bottom: 22px; }
   .sav-card{ background: var(--surface); border:1px solid var(--surface-2); border-radius: 12px; padding: 14px 14px 12px; }
   .sav-card .sav-cur{ font-family:'Space Mono',monospace; font-weight:700; font-size:13px; letter-spacing:1px; color: var(--gold); margin-bottom:8px; display:block; }
@@ -344,7 +337,6 @@
   @media (prefers-reduced-motion: reduce){ *{ animation: none !important; transition: none !important; } }
   @media (max-width: 380px){ .cb-name{ width: 62px; } .brand-mark{ font-size:19px; } }
 
-  /* ---- Side drawer (menu) ---- */
   .drawer-overlay{ position:fixed; inset:0; background: rgba(10,9,13,.55); opacity:0; pointer-events:none; transition: opacity .25s ease; z-index: 30; }
   .drawer-overlay.open{ opacity:1; pointer-events:auto; }
   .drawer{ position:fixed; top:0; left:0; bottom:0; width: 84%; max-width: 320px; background: var(--page-bg); color: var(--fg); box-shadow: 20px 0 50px -20px rgba(0,0,0,.5); transform: translateX(-100%); transition: transform .28s cubic-bezier(.2,.8,.2,1); overflow-y:auto; padding: calc(20px + env(safe-area-inset-top)) 18px 24px; }
@@ -367,7 +359,6 @@
 
   .danger-item{ color: var(--red-c) !important; }
 
-  /* ---- Category manager ---- */
   .catmgr-tabs{ display:flex; gap:8px; margin-bottom:16px; }
   .catmgr-tabs button{ flex:1; padding:9px 0; border-radius:999px; border:1.5px solid var(--paper-line); background:none; color: var(--text-soft); font-family:'Manrope',sans-serif; font-size:12.5px; font-weight:700; cursor:pointer; }
   .catmgr-tabs button.active{ border-color: var(--sheet-accent); background: var(--sheet-accent-soft); color: var(--text); }
@@ -378,11 +369,68 @@
   .catmgr-icon-btn{ background:none; border:none; color: var(--text-soft); cursor:pointer; font-size:14px; padding:4px; flex-shrink:0; }
   .catmgr-icon-btn:hover{ color: var(--sheet-accent); }
   .catmgr-icon-btn.danger:hover{ color: var(--red); }
+
+  /* ---- Auth screen ---- */
+  .auth-screen{ position:fixed; inset:0; z-index:100; background: var(--page-bg); display:flex; align-items:center; justify-content:center; padding: 24px; }
+  .auth-card{ width:100%; max-width: 380px; }
+  .auth-brand{ text-align:center; margin-bottom: 28px; }
+  .auth-brand .brand-mark{ font-size: 28px; }
+  .auth-tabs{ display:flex; gap:8px; margin-bottom: 20px; }
+  .auth-tabs button{ flex:1; padding:10px 0; border-radius:999px; border:1px solid var(--surface-3); background: var(--surface); color:var(--fg-muted); font-family:'Space Mono',monospace; font-size:11px; letter-spacing:1px; font-weight:700; cursor:pointer; }
+  .auth-tabs button.active{ border-color: var(--gold); background: var(--gold-soft); color: var(--gold); }
+  .auth-field{ margin-bottom: 14px; }
+  .auth-field input{ width:100%; padding: 13px 14px; border-radius: 10px; border:1px solid var(--surface-3); background: var(--surface); color: var(--fg); font-family:'Manrope',sans-serif; font-size:15px; outline:none; }
+  .auth-field input:focus{ border-color: var(--gold); }
+  .auth-field input::placeholder{ color: var(--fg-faint); }
+  .auth-error{ display:none; color: var(--red-c); font-family:'Manrope',sans-serif; font-size:12.5px; margin-bottom: 12px; line-height:1.4; }
+  .auth-error.show{ display:block; }
+  .auth-submit{ width:100%; border:none; border-radius: 999px; padding: 14px 0; font-family:'Space Mono',monospace; font-weight:700; font-size: 12.5px; letter-spacing:1.5px; color: var(--ink); background: var(--gold); cursor:pointer; margin-bottom: 14px; transition: transform .12s ease, opacity .15s; }
+  .auth-submit:active{ transform: scale(.97); }
+  .auth-submit:disabled{ opacity:.5; cursor:not-allowed; }
+  .auth-divider{ display:flex; align-items:center; gap:10px; margin: 16px 0; font-family:'Space Mono',monospace; font-size:10.5px; color: var(--fg-faint); letter-spacing:1px; text-transform:uppercase; }
+  .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background: var(--surface-3); }
+  .auth-google-btn{ width:100%; border:1px solid var(--surface-3); border-radius: 999px; padding: 13px 0; font-family:'Manrope',sans-serif; font-weight:700; font-size: 13.5px; color: var(--fg); background: var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; transition: border-color .15s, background .15s; }
+  .auth-google-btn:hover{ border-color: var(--surface-hover-2); background: var(--surface-hover); }
+  .auth-loading{ position:fixed; inset:0; z-index:100; background: var(--page-bg); display:flex; align-items:center; justify-content:center; color: var(--fg-muted); font-family:'Space Mono',monospace; font-size:12px; letter-spacing:1.5px; }
+  .auth-account-row{ display:flex; align-items:center; gap:10px; padding: 8px; }
+  .auth-account-email{ flex:1; font-family:'Manrope',sans-serif; font-size:12.5px; color: var(--fg-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sync-badge{ display:inline-flex; align-items:center; gap:4px; font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.5px; color: var(--fg-faint); }
+  .sync-badge .dot{ width:5px; height:5px; border-radius:50%; background: var(--fg-faint); }
+  .sync-badge.synced .dot{ background: var(--green-c); }
+  .sync-badge.syncing .dot{ background: var(--gold); animation: pulse-dot 1s ease-in-out infinite; }
+  .sync-badge.error .dot{ background: var(--red-c); }
+  @keyframes pulse-dot{ 0%,100%{opacity:1;} 50%{opacity:.3;} }
 </style>
 </head>
 <body>
 
-<div class="app">
+<div class="auth-loading" id="authLoading">ЗАГРУЗКА…</div>
+
+<div class="auth-screen" id="authScreen" style="display:none;">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark">ЛЕНТА</span><br/>
+      <span class="brand-sub">учёт доходов и расходов</span>
+    </div>
+    <div class="auth-tabs">
+      <button type="button" class="active" data-auth-mode="signin" id="authTabSignin">Вход</button>
+      <button type="button" data-auth-mode="signup" id="authTabSignup">Регистрация</button>
+    </div>
+    <div class="auth-error" id="authError"></div>
+    <form id="authForm">
+      <div class="auth-field"><input type="email" id="authEmail" placeholder="Email" autocomplete="email" required /></div>
+      <div class="auth-field"><input type="password" id="authPassword" placeholder="Пароль" autocomplete="current-password" required minlength="6" /></div>
+      <button type="submit" class="auth-submit" id="authSubmitBtn">ВОЙТИ</button>
+    </form>
+    <div class="auth-divider">или</div>
+    <button type="button" class="auth-google-btn" id="authGoogleBtn">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.85.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.05l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.95l2.99 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      Войти через Google
+    </button>
+  </div>
+</div>
+
+<div class="app" id="mainApp" style="display:none;">
   <header class="topbar">
     <div class="topbar-left">
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">
@@ -463,12 +511,6 @@
     <div class="section-title" data-i18n="sectionBalances">остатки</div>
     <div class="savings-grid" id="savingsGrid"></div>
 
-    <div class="section-title" data-i18n="sectionSavingsPeriod">за период</div>
-    <div class="month-summary" style="grid-template-columns: repeat(2,1fr);">
-      <div class="sum-card"><span class="k" data-i18n="kDeposited">Внесено</span><span class="v" id="savDeposited" style="color:var(--green-c)">0.00</span></div>
-      <div class="sum-card"><span class="k" data-i18n="kWithdrawn">Снято</span><span class="v" id="savWithdrawn" style="color:var(--red-c)">0.00</span><span class="carry-note" id="savPeriodNote"></span></div>
-    </div>
-
     <div class="section-title" data-i18n="sectionConverted">в пересчёте</div>
     <div class="cur-select-row" id="savingsCurrencySelector"></div>
     <div class="donut-wrap" id="savingsDonutWrap"></div>
@@ -494,7 +536,7 @@
 
   </div><!-- /viewSavings -->
 
-  <div class="footnote" data-i18n="footnote">файл автономный — данные хранятся прямо в этом браузере</div>
+  <div class="footnote" id="footnoteText">данные синхронизируются с облаком</div>
   <div class="backup-row" style="display:none;">
     <button class="backup-btn" id="exportBtn" data-i18n="backupExport">⇩ резервная копия</button>
     <button class="backup-btn" id="importBtn" data-i18n="backupImport">⇧ восстановить из файла</button>
@@ -505,6 +547,15 @@
 <div class="drawer-overlay" id="drawerOverlay">
   <div class="drawer" id="drawer">
     <button type="button" class="drawer-close" id="drawerClose" aria-label="Закрыть меню">✕</button>
+
+    <div class="drawer-title" data-i18n="menuAccount">Аккаунт</div>
+    <div class="auth-account-row">
+      <span class="auth-account-email" id="accountEmail">—</span>
+      <span class="sync-badge" id="syncBadge"><span class="dot"></span><span id="syncBadgeText">офлайн</span></span>
+    </div>
+    <button type="button" class="drawer-item danger-item" id="drawerLogoutBtn">
+      <span data-i18n="menuLogout">Выйти из аккаунта</span><span class="di-chev">⇥</span>
+    </button>
 
     <div class="drawer-title" data-i18n="menuCategories">Статьи</div>
     <button type="button" class="drawer-item" id="openCatMgr">
@@ -543,7 +594,7 @@
     </button>
 
     <div class="drawer-title" data-i18n="menuAbout">О приложении</div>
-    <div style="font-family:'Space Mono',monospace; font-size:11px; color: var(--fg-faint); padding: 4px 8px;" data-i18n="menuAboutText">ЛЕНТА — автономный трекер финансов. Данные хранятся только в этом браузере.</div>
+    <div style="font-family:'Space Mono',monospace; font-size:11px; color: var(--fg-faint); padding: 4px 8px;" id="aboutText">ЛЕНТА — трекер финансов с синхронизацией через облако.</div>
   </div>
 </div>
 
@@ -599,17 +650,187 @@
   </div>
 </div>
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup,
+    signOut, setPersistence, browserLocalPersistence
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAEN3e6a-fEyC6tjgq6qkaRyqh1_OIzbm0",
+    authDomain: "lenta-92fbe.firebaseapp.com",
+    projectId: "lenta-92fbe",
+    storageBucket: "lenta-92fbe.firebasestorage.app",
+    messagingSenderId: "433668507840",
+    appId: "1:433668507840:web:3df9501481d80671584525"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const auth = getAuth(fbApp);
+  const db = getFirestore(fbApp);
+
+  let currentUser = null;
+  let unsubscribeSnapshot = null;
+  let suppressNextSnapshot = false;
+  let onRemoteState = null;
+  let onAuthReady = null;
+
+  function userDocRef(uid){ return doc(db, 'users', uid, 'lenta', 'data'); }
+
+  async function pushState(partialState){
+    if(!currentUser) return;
+    try{
+      setSyncBadge('syncing');
+      suppressNextSnapshot = true;
+      await setDoc(userDocRef(currentUser.uid), { ...partialState, updatedAt: serverTimestamp() }, { merge: true });
+      setSyncBadge('synced');
+    }catch(e){
+      console.error('Firestore write error', e);
+      setSyncBadge('error');
+    }
+  }
+
+  function setSyncBadge(status){
+    const badge = document.getElementById('syncBadge');
+    const text = document.getElementById('syncBadgeText');
+    if(!badge || !text) return;
+    badge.className = 'sync-badge ' + status;
+    const labels = { synced:'синхронизировано', syncing:'сохранение…', error:'ошибка синхр.', offline:'офлайн' };
+    text.textContent = labels[status] || status;
+  }
+
+  function watchUserDoc(uid){
+    if(unsubscribeSnapshot) unsubscribeSnapshot();
+    unsubscribeSnapshot = onSnapshot(userDocRef(uid), (snap)=>{
+      if(suppressNextSnapshot){ suppressNextSnapshot = false; return; }
+      if(snap.exists() && onRemoteState){
+        onRemoteState(snap.data());
+      }
+      setSyncBadge('synced');
+    }, (err)=>{
+      console.error('Firestore snapshot error', err);
+      setSyncBadge('error');
+    });
+  }
+
+  async function ensureUserDocExists(uid){
+    const ref = userDocRef(uid);
+    const snap = await getDoc(ref);
+    if(!snap.exists()){
+      await setDoc(ref, {
+        entries: [], customCats: {expense:[], income:[]}, categoryOverrides: {},
+        categoryHidden: [], savingsEntries: [], customCurrencies: [],
+        displayCurrency: 'BYN', periodStartDay: 1, lang: 'ru', theme: 'night',
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+    }
+  }
+
+  setPersistence(auth, browserLocalPersistence).catch(()=>{});
+
+  onAuthStateChanged(auth, async (user)=>{
+    document.getElementById('authLoading').style.display = 'none';
+    if(user){
+      currentUser = user;
+      document.getElementById('authScreen').style.display = 'none';
+      document.getElementById('mainApp').style.display = '';
+      const emailEl = document.getElementById('accountEmail');
+      if(emailEl) emailEl.textContent = user.email || 'без email';
+      setSyncBadge('syncing');
+      await ensureUserDocExists(user.uid);
+      watchUserDoc(user.uid);
+      if(onAuthReady) onAuthReady(user);
+    }else{
+      currentUser = null;
+      if(unsubscribeSnapshot){ unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+      document.getElementById('mainApp').style.display = 'none';
+      document.getElementById('authScreen').style.display = 'flex';
+    }
+  });
+
+  const authForm = document.getElementById('authForm');
+  const authEmail = document.getElementById('authEmail');
+  const authPassword = document.getElementById('authPassword');
+  const authError = document.getElementById('authError');
+  const authSubmitBtn = document.getElementById('authSubmitBtn');
+  const authTabSignin = document.getElementById('authTabSignin');
+  const authTabSignup = document.getElementById('authTabSignup');
+  const authGoogleBtn = document.getElementById('authGoogleBtn');
+  let authMode = 'signin';
+
+  function setAuthMode(mode){
+    authMode = mode;
+    authTabSignin.classList.toggle('active', mode==='signin');
+    authTabSignup.classList.toggle('active', mode==='signup');
+    authSubmitBtn.textContent = mode==='signin' ? 'ВОЙТИ' : 'СОЗДАТЬ АККАУНТ';
+    authError.classList.remove('show');
+  }
+  authTabSignin.addEventListener('click', ()=> setAuthMode('signin'));
+  authTabSignup.addEventListener('click', ()=> setAuthMode('signup'));
+
+  function showAuthError(err){
+    const map = {
+      'auth/invalid-email': 'Некорректный email',
+      'auth/user-not-found': 'Пользователь не найден',
+      'auth/wrong-password': 'Неверный пароль',
+      'auth/invalid-credential': 'Неверный email или пароль',
+      'auth/email-already-in-use': 'Этот email уже зарегистрирован',
+      'auth/weak-password': 'Пароль слишком простой (минимум 6 символов)',
+      'auth/popup-closed-by-user': 'Окно входа закрыто',
+      'auth/network-request-failed': 'Проблема с сетью, попробуй ещё раз',
+    };
+    authError.textContent = map[err.code] || ('Ошибка: ' + (err.message || err.code || 'неизвестная'));
+    authError.classList.add('show');
+  }
+
+  authForm.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    authError.classList.remove('show');
+    authSubmitBtn.disabled = true;
+    const email = authEmail.value.trim();
+    const pw = authPassword.value;
+    try{
+      if(authMode==='signin'){
+        await signInWithEmailAndPassword(auth, email, pw);
+      }else{
+        await createUserWithEmailAndPassword(auth, email, pw);
+      }
+    }catch(err){
+      showAuthError(err);
+    }finally{
+      authSubmitBtn.disabled = false;
+    }
+  });
+
+  authGoogleBtn.addEventListener('click', async ()=>{
+    authError.classList.remove('show');
+    try{
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    }catch(err){
+      showAuthError(err);
+    }
+  });
+
+  window.LentaCloud = {
+    pushState,
+    signOut: ()=> signOut(auth),
+    setOnRemoteState(fn){ onRemoteState = fn; },
+    setOnAuthReady(fn){ onAuthReady = fn; },
+    get currentUser(){ return currentUser; },
+    setSyncBadge,
+  };
+</script>
+
 <script>
 (function(){
   "use strict";
 
-  /* ---- iOS keyboard-avoidance for sheets ----
-     When the on-screen keyboard opens, the visible area (visual viewport)
-     shrinks but the page's layout viewport doesn't — so a naive fixed
-     sheet can end up misaligned with the keyboard, or covered by it.
-     Fix: keep the dark backdrop covering the full layout viewport as
-     always (simple, robust), and only lift/shrink the visible sheet
-     card itself so it always sits fully above the keyboard. */
   function syncOverlaysToVisualViewport(){
     if(!window.visualViewport) return;
     const vv = window.visualViewport;
@@ -626,7 +847,6 @@
   window.addEventListener('load', syncOverlaysToVisualViewport);
   window.__syncSheetOverlays = syncOverlaysToVisualViewport;
 
-  /* ---- i18n ---- */
   const I18N = {
     ru: {
       brandMark:'ЛЕНТА', brandSub:'учёт доходов и расходов',
@@ -636,21 +856,21 @@
       sectionMonth:'за месяц', kIncome:'Доходы', kExpense:'Расходы', kBalance:'Баланс',
       sectionExpenseBreakdown:'на что уходит', sectionIncomeBreakdown:'откуда приходит',
       sectionBalances:'остатки', btnDeposit:'+ ВНЕСТИ', btnWithdraw:'− ЗАБРАТЬ',
-      sectionSavingsPeriod:'за период', kDeposited:'Внесено', kWithdrawn:'Снято',
       sectionHistory:'история операций', emptySavings:'пока нет отложенных сумм',
-      footnote:'файл автономный — данные хранятся прямо в этом браузере',
+      footnote:'данные синхронизируются с облаком',
       backupExport:'⇩ резервная копия', backupImport:'⇧ восстановить из файла',
       notePlaceholder:'комментарий (необязательно)', btnCancel:'Отмена', btnStamp:'ПРОБИТЬ ЧЕК', btnRecord:'ЗАПИСАТЬ',
       sectionCurrency:'валюта', sectionForm:'форма',
       newCatPlaceholder:'название статьи, напр. Спортзал', newCurPlaceholder:'напр. PLN, GEL',
       catMgrDone:'Готово',
+      menuAccount:'Аккаунт', menuLogout:'Выйти из аккаунта',
       menuCategories:'Статьи', menuCatManage:'Редактировать статьи',
       menuPeriod:'Отчётный период', menuPeriodHint:'День начала периода (например, день зарплаты)',
       carryIncluded:'вкл. перенос',
       menuAppearance:'Оформление', menuTheme:'Тема оформления', menuDisplayCurrency:'Валюта отображения (накопления)',
       menuLanguage:'Язык / Language', menuData:'Данные', menuExport:'Резервная копия',
       menuImport:'Восстановить из файла', menuReset:'Сбросить все данные',
-      menuAbout:'О приложении', menuAboutText:'ЛЕНТА — автономный трекер финансов. Данные хранятся только в этом браузере.',
+      menuAbout:'О приложении', menuAboutText:'ЛЕНТА — трекер финансов с синхронизацией через облако.',
       catMgrTitle:'Редактировать статьи', catMgrExpense:'Расходы', catMgrIncome:'Доходы',
       sheetIncomeTitle:'Пробить доход', sheetExpenseTitle:'Пробить расход',
       sheetDepositTitle:'Внести в накопления', sheetWithdrawTitle:'Забрать из накоплений',
@@ -670,21 +890,21 @@
       sectionMonth:'this month', kIncome:'Income', kExpense:'Expense', kBalance:'Balance',
       sectionExpenseBreakdown:'where it goes', sectionIncomeBreakdown:'where it comes from',
       sectionBalances:'balances', btnDeposit:'+ DEPOSIT', btnWithdraw:'− WITHDRAW',
-      sectionSavingsPeriod:'this period', kDeposited:'Deposited', kWithdrawn:'Withdrawn',
       sectionHistory:'history', emptySavings:'no savings entries yet',
-      footnote:'this file is standalone — data lives only in this browser',
+      footnote:'data syncs to the cloud',
       backupExport:'⇩ backup', backupImport:'⇧ restore from file',
       notePlaceholder:'note (optional)', btnCancel:'Cancel', btnStamp:'RECORD', btnRecord:'RECORD',
       sectionCurrency:'currency', sectionForm:'form',
       newCatPlaceholder:'category name, e.g. Gym', newCurPlaceholder:'e.g. PLN, GEL',
       catMgrDone:'Done',
+      menuAccount:'Account', menuLogout:'Sign out',
       menuCategories:'Categories', menuCatManage:'Edit categories',
       menuPeriod:'Reporting period', menuPeriodHint:'Period start day (e.g. payday)',
       carryIncluded:'incl. carryover',
       menuAppearance:'Appearance', menuTheme:'Theme', menuDisplayCurrency:'Display currency (savings)',
       menuLanguage:'Язык / Language', menuData:'Data', menuExport:'Backup',
       menuImport:'Restore from file', menuReset:'Reset all data',
-      menuAbout:'About', menuAboutText:'LENTA is a standalone finance tracker. Data lives only in this browser.',
+      menuAbout:'About', menuAboutText:'LENTA is a finance tracker synced through the cloud.',
       catMgrTitle:'Edit categories', catMgrExpense:'Expenses', catMgrIncome:'Income',
       sheetIncomeTitle:'Record income', sheetExpenseTitle:'Record expense',
       sheetDepositTitle:'Deposit to savings', sheetWithdrawTitle:'Withdraw from savings',
@@ -703,6 +923,8 @@
     document.documentElement.lang = currentLang;
     document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{ el.placeholder = t(el.dataset.i18nPlaceholder); });
+    const foot = document.getElementById('footnoteText'); if(foot) foot.textContent = t('footnote');
+    const about = document.getElementById('aboutText'); if(about) about.textContent = t('menuAboutText');
   }
 
   const BASE_CATS = {
@@ -792,12 +1014,8 @@
   let periodStartDay = 1;
 
   function iso(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
-  function getMonday(d){ const dt = new Date(d); const day = (dt.getDay()+6)%7; dt.setDate(dt.getDate()-day); dt.setHours(0,0,0,0); return dt; }
   function addDays(d,n){ const nd=new Date(d); nd.setDate(nd.getDate()+n); return nd; }
-  function addMonths(d,n){ const nd=new Date(d); const day=nd.getDate(); nd.setDate(1); nd.setMonth(nd.getMonth()+n); const last=new Date(nd.getFullYear(),nd.getMonth()+1,0).getDate(); nd.setDate(Math.min(day,last)); return nd; }
   function clampDayInMonth(y,m,day){ const last = new Date(y, m+1, 0).getDate(); return Math.min(day, last); }
-  // A "period" runs from periodStartDay of one month to (periodStartDay - 1) of the next.
-  // periodStartDay=1 makes this behave exactly like a calendar month (backwards compatible).
   function getPeriodRange(date){
     const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
     let startY = y, startM = m;
@@ -820,8 +1038,6 @@
     nd.setDate(nd.getDate() + dir);
     return nd;
   }
-  // Sum of all entries dated strictly before the current period's start — this is the
-  // "opening balance" carried into the period. Purely computed, nothing is stored/moved.
   function openingBalanceForPeriod(date){
     const { start } = getPeriodRange(date);
     return entries.filter(e=>{
@@ -834,49 +1050,52 @@
   function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
   function genCode(name){ const letters = name.trim().toUpperCase().replace(/[^А-ЯЁA-Z]/g,''); return (letters.slice(0,3) || 'НОВ'); }
 
-  async function loadAll(){
-    try{
-      entries = JSON.parse(localStorage.getItem('lenta_entries') || '[]');
-    }catch(e){ entries = []; }
-    try{
-      customCats = JSON.parse(localStorage.getItem('lenta_customCats') || '{"expense":[],"income":[]}');
-    }catch(e){ customCats = {expense:[], income:[]}; }
-    try{
-      categoryOverrides = JSON.parse(localStorage.getItem('lenta_catOverrides') || '{}');
-    }catch(e){ categoryOverrides = {}; }
-    try{
-      categoryHidden = JSON.parse(localStorage.getItem('lenta_catHidden') || '[]');
-    }catch(e){ categoryHidden = []; }
+  let pushTimer = null;
+  function schedulePush(){
+    if(pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(()=>{
+      pushTimer = null;
+      if(!window.LentaCloud || !window.LentaCloud.currentUser) return;
+      window.LentaCloud.pushState({
+        entries, customCats, categoryOverrides, categoryHidden,
+        savingsEntries, customCurrencies, displayCurrency,
+        periodStartDay, lang: currentLang, theme: (localStorage.getItem('lenta_theme') || 'night')
+      });
+    }, 350);
+  }
+
+  function applyRemoteState(data){
+    if(data.entries) entries = data.entries;
+    if(data.customCats) customCats = data.customCats;
+    if(data.categoryOverrides) categoryOverrides = data.categoryOverrides;
+    if(data.categoryHidden) categoryHidden = data.categoryHidden;
     rebuildCats();
-    try{
-      savingsEntries = JSON.parse(localStorage.getItem('lenta_savings') || '[]');
-    }catch(e){ savingsEntries = []; }
-    try{
-      customCurrencies = JSON.parse(localStorage.getItem('lenta_customCurrencies') || '[]');
-    }catch(e){ customCurrencies = []; }
-    CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies];
-    try{ displayCurrency = localStorage.getItem('lenta_displayCurrency') || 'BYN'; }catch(e){ displayCurrency = 'BYN'; }
-    try{
-      const savedStartDay = parseInt(localStorage.getItem('lenta_periodStartDay') || '1', 10);
-      periodStartDay = (savedStartDay >= 1 && savedStartDay <= 31) ? savedStartDay : 1;
-    }catch(e){ periodStartDay = 1; }
+    if(data.savingsEntries) savingsEntries = data.savingsEntries;
+    if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
+    if(data.displayCurrency) displayCurrency = data.displayCurrency;
+    if(typeof data.periodStartDay === 'number') periodStartDay = data.periodStartDay;
+    if(data.lang && I18N[data.lang]){ currentLang = data.lang; applyI18n(); document.querySelectorAll('#langToggle button').forEach(b=> b.classList.toggle('active', b.dataset.lang===currentLang)); }
+    if(data.theme && window.__applyLentaTheme) window.__applyLentaTheme(data.theme);
     const periodInput = document.getElementById('periodStartDayInput');
     if(periodInput) periodInput.value = periodStartDay;
-    renderPeriodRangePreview();
-    try{ currentLang = localStorage.getItem('lenta_lang') || 'ru'; }catch(e){ currentLang = 'ru'; }
-    if(!I18N[currentLang]) currentLang = 'ru';
-    applyI18n();
-    document.querySelectorAll('#langToggle button').forEach(b=> b.classList.toggle('active', b.dataset.lang===currentLang));
-    fetchFxRates();
     renderAll();
   }
-  function persistEntries(){ try{ localStorage.setItem('lenta_entries', JSON.stringify(entries)); }catch(e){ console.error('storage error', e); } }
-  function persistCustomCats(){ try{ localStorage.setItem('lenta_customCats', JSON.stringify(customCats)); }catch(e){ console.error('storage error', e); } }
-  function persistSavings(){ try{ localStorage.setItem('lenta_savings', JSON.stringify(savingsEntries)); }catch(e){ console.error('storage error', e); } }
-  function persistCustomCurrencies(){ try{ localStorage.setItem('lenta_customCurrencies', JSON.stringify(customCurrencies)); }catch(e){ console.error('storage error', e); } }
-  function persistCatOverrides(){ try{ localStorage.setItem('lenta_catOverrides', JSON.stringify(categoryOverrides)); }catch(e){ console.error('storage error', e); } }
-  function persistCatHidden(){ try{ localStorage.setItem('lenta_catHidden', JSON.stringify(categoryHidden)); }catch(e){ console.error('storage error', e); } }
-  function persistPeriodStartDay(){ try{ localStorage.setItem('lenta_periodStartDay', String(periodStartDay)); }catch(e){ console.error('storage error', e); } }
+
+  if(window.LentaCloud){
+    window.LentaCloud.setOnRemoteState(applyRemoteState);
+    window.LentaCloud.setOnAuthReady(()=>{ fetchFxRates(); });
+  }
+
+  function persistEntries(){ schedulePush(); }
+  function persistCustomCats(){ schedulePush(); }
+  function persistSavings(){ schedulePush(); }
+  function persistCustomCurrencies(){ schedulePush(); }
+  function persistCatOverrides(){ schedulePush(); }
+  function persistCatHidden(){ schedulePush(); }
+  function persistPeriodStartDay(){ schedulePush(); }
+  function persistDisplayCurrency(){ schedulePush(); }
+  function persistLang(){ schedulePush(); }
+
   function renderPeriodRangePreview(){
     const el = document.getElementById('periodRangePreview');
     if(!el) return;
@@ -903,7 +1122,6 @@
     renderSavingsGrid();
     renderSavingsHistory();
     renderSavingsConverted();
-    renderSavingsPeriodSummary();
   }
 
   function renderMonthLabel(){
@@ -1028,7 +1246,6 @@
     const rows = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
     const total = rows.reduce((s,[,v])=>s+v,0);
 
-    // --- donut ---
     const r = 52, cx = 64, cy = 64, sw = 18;
     const circumference = 2 * Math.PI * r;
     let cumulative = 0;
@@ -1055,7 +1272,6 @@
         </div>
       </div>`;
 
-    // --- legend ---
     box.innerHTML = '';
     rows.forEach(([key, amt])=>{
       const ci = catInfo(type, key);
@@ -1102,12 +1318,6 @@
     const set = new Set(CURRENCIES);
     savingsEntries.forEach(e=> set.add(e.currency));
     return Array.from(set);
-  }
-
-  // Savings entries dated within the same custom period currently selected in the ledger view.
-  function periodSavingsEntries(){
-    const { start, end } = getPeriodRange(selectedDate);
-    return savingsEntries.filter(e=>{ const d = new Date(e.date+'T00:00:00'); return d >= start && d <= end; });
   }
 
   function renderSavingsGrid(){
@@ -1157,31 +1367,9 @@
 
   function removeSavingsEntry(id, rowEl){
     rowEl.classList.add('voiding');
-    setTimeout(()=>{ savingsEntries = savingsEntries.filter(e=>e.id!==id); persistSavings(); renderSavingsGrid(); renderSavingsHistory(); renderSavingsPeriodSummary(); }, 320);
+    setTimeout(()=>{ savingsEntries = savingsEntries.filter(e=>e.id!==id); persistSavings(); renderSavingsGrid(); renderSavingsHistory(); }, 320);
   }
 
-  // Sums this period's savings deposits/withdrawals, converted into the chosen display
-  // currency so mixed-currency activity still rolls up into one comparable number.
-  function renderSavingsPeriodSummary(){
-    const pe = periodSavingsEntries();
-    let deposited = 0, withdrawn = 0, excluded = false;
-    pe.forEach(e=>{
-      const converted = convertAmount(e.amount, e.currency, displayCurrency);
-      if(converted == null){ excluded = true; return; }
-      if(e.type==='in') deposited += converted; else withdrawn += converted;
-    });
-    const depEl = document.getElementById('savDeposited');
-    const witEl = document.getElementById('savWithdrawn');
-    if(depEl) depEl.textContent = fmt(deposited);
-    if(witEl) witEl.textContent = fmt(withdrawn);
-    const noteEl = document.getElementById('savPeriodNote');
-    if(noteEl){
-      if(excluded){ noteEl.textContent = t('displayCurrencyNote'); noteEl.classList.add('show'); }
-      else{ noteEl.textContent = ''; noteEl.classList.remove('show'); }
-    }
-  }
-
-  /* ---- Sheet (add entry) ---- */
   const overlay = document.getElementById('sheetOverlay');
   const sheetTitle = document.getElementById('sheetTitle');
   const amountInput = document.getElementById('amountInput');
@@ -1278,7 +1466,6 @@
     btn.addEventListener('click', ()=> openSheet(btn.dataset.type));
   });
 
-  /* ---- Savings sheet ---- */
   const savingsOverlay = document.getElementById('savingsSheetOverlay');
   const savingsSheetTitle = document.getElementById('savingsSheetTitle');
   const savingsAmountInput = document.getElementById('savingsAmountInput');
@@ -1375,14 +1562,12 @@
     closeSavingsSheet();
     renderSavingsGrid();
     renderSavingsHistory();
-    renderSavingsPeriodSummary();
   });
 
   document.querySelectorAll('[data-action="open-savings"]').forEach(btn=>{
     btn.addEventListener('click', ()=> openSavingsSheet(btn.dataset.type));
   });
 
-  /* ---- Tab switching ---- */
   document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1408,7 +1593,6 @@
   const datePicker = document.getElementById('datePicker');
   document.getElementById('monthLabel').addEventListener('click', ()=>{
     datePicker.value = iso(selectedDate);
-    // showPicker() opens the native calendar UI directly (supported iOS/Android/desktop browsers)
     if (datePicker.showPicker) { datePicker.showPicker(); } else { datePicker.focus(); datePicker.click(); }
   });
   document.getElementById('monthLabel').addEventListener('keydown', (e)=>{
@@ -1451,7 +1635,6 @@
     else{ temp.focus(); temp.click(); }
   }
 
-  /* ---- backup export / import ---- */
   document.getElementById('exportBtn').addEventListener('click', ()=>{
     const payload = JSON.stringify({ entries, customCats, savingsEntries, customCurrencies, periodStartDay }, null, 2);
     const blob = new Blob([payload], {type:'application/json'});
@@ -1473,12 +1656,11 @@
       try{
         const data = JSON.parse(reader.result);
         if(Array.isArray(data.entries)) entries = data.entries;
-        if(data.customCats){ customCats = data.customCats; CATS = { expense:[...BASE_CATS.expense, ...customCats.expense], income:[...BASE_CATS.income, ...customCats.income] }; }
+        if(data.customCats){ customCats = data.customCats; rebuildCats(); }
         if(Array.isArray(data.savingsEntries)) savingsEntries = data.savingsEntries;
         if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
         if(typeof data.periodStartDay === 'number' && data.periodStartDay >= 1 && data.periodStartDay <= 31){
           periodStartDay = data.periodStartDay;
-          persistPeriodStartDay();
           const periodInput = document.getElementById('periodStartDayInput');
           if(periodInput) periodInput.value = periodStartDay;
         }
@@ -1486,6 +1668,7 @@
         persistCustomCats();
         persistSavings();
         persistCustomCurrencies();
+        persistPeriodStartDay();
         renderAll();
       }catch(err){ alert('Не получилось прочитать файл резервной копии'); }
       e.target.value = '';
@@ -1493,7 +1676,6 @@
     reader.readAsText(file);
   });
 
-  /* ---- Swipe-down-to-dismiss on sheet handles ---- */
   function initSheetSwipeToDismiss(){
     document.querySelectorAll('.sheet').forEach(sheetEl=>{
       const handle = sheetEl.querySelector('.sheet-handle');
@@ -1536,7 +1718,6 @@
   }
   initSheetSwipeToDismiss();
 
-  /* ---- FX rates + savings currency conversion ---- */
   let fxRates = null;
   async function fetchFxRates(){
     try{
@@ -1579,10 +1760,9 @@
         btn.className = cur === displayCurrency ? 'active' : '';
         btn.addEventListener('click', ()=>{
           displayCurrency = cur;
-          try{ localStorage.setItem('lenta_displayCurrency', cur); }catch(e){}
+          persistDisplayCurrency();
           renderDisplayCurrencyOptions();
           renderSavingsConverted();
-          renderSavingsPeriodSummary();
         });
         row.appendChild(btn);
       });
@@ -1596,8 +1776,8 @@
     if(!donutWrap || !legend) return;
 
     const currencies = currenciesInUse();
-    const rows = []; // {key, label, amountConverted}
-    const excluded = []; // {key, label, amountRaw}
+    const rows = [];
+    const excluded = [];
     currencies.forEach(cur=>{
       ['cash','noncash'].forEach(form=>{
         const bal = savingsBalance(cur, form);
@@ -1671,7 +1851,6 @@
     });
   }
 
-  /* ---- Category manager ---- */
   let catMgrType = 'expense';
   const catMgrOverlay = document.getElementById('catMgrSheetOverlay');
   function openCatMgr(){
@@ -1743,7 +1922,6 @@
   document.getElementById('catMgrCloseBtn').addEventListener('click', closeCatMgr);
   catMgrOverlay.addEventListener('click', (e)=>{ if(e.target===catMgrOverlay) closeCatMgr(); });
 
-  /* ---- Side drawer ---- */
   const drawerOverlay = document.getElementById('drawerOverlay');
   function openDrawer(){ drawerOverlay.classList.add('open'); }
   function closeDrawer(){ drawerOverlay.classList.remove('open'); }
@@ -1772,7 +1950,7 @@
   document.querySelectorAll('#langToggle button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       currentLang = btn.dataset.lang;
-      try{ localStorage.setItem('lenta_lang', currentLang); }catch(e){}
+      persistLang();
       document.querySelectorAll('#langToggle button').forEach(b=> b.classList.toggle('active', b===btn));
       applyI18n();
       renderAll();
@@ -1781,15 +1959,27 @@
 
   document.getElementById('drawerExportBtn').addEventListener('click', ()=> document.getElementById('exportBtn').click());
   document.getElementById('drawerImportBtn').addEventListener('click', ()=> document.getElementById('importBtn').click());
+  document.getElementById('drawerLogoutBtn').addEventListener('click', ()=>{
+    if(!confirm(currentLang==='ru' ? 'Выйти из аккаунта на этом устройстве?' : 'Sign out on this device?')) return;
+    if(window.LentaCloud) window.LentaCloud.signOut();
+  });
   document.getElementById('drawerResetBtn').addEventListener('click', ()=>{
     if(!confirm(t('confirmReset'))) return;
-    ['lenta_entries','lenta_customCats','lenta_catOverrides','lenta_catHidden','lenta_savings','lenta_customCurrencies','lenta_displayCurrency','lenta_lang','lenta_fxRates','lenta_fxRatesTs','lenta_theme','lenta_periodStartDay'].forEach(k=>{
-      try{ localStorage.removeItem(k); }catch(e){}
-    });
-    location.reload();
+    entries = []; customCats = {expense:[], income:[]}; categoryOverrides = {}; categoryHidden = [];
+    savingsEntries = []; customCurrencies = []; CURRENCIES = [...DEFAULT_CURRENCIES];
+    displayCurrency = 'BYN'; periodStartDay = 1;
+    rebuildCats();
+    persistEntries(); persistCustomCats(); persistCatOverrides(); persistCatHidden();
+    persistSavings(); persistCustomCurrencies(); persistDisplayCurrency(); persistPeriodStartDay();
+    ['lenta_fxRates','lenta_fxRatesTs','lenta_theme'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+    renderAll();
   });
 
-  loadAll();
+  const periodInput0 = document.getElementById('periodStartDayInput');
+  if(periodInput0) periodInput0.value = periodStartDay;
+  renderPeriodRangePreview();
+  applyI18n();
+  renderAll();
 })();
 </script>
 <div class="sheet-overlay" id="themeSheetOverlay">
@@ -1826,15 +2016,22 @@
   const overlay = document.getElementById('themeSheetOverlay');
   const grid = document.getElementById('themeGrid');
   const closeBtn = document.getElementById('themeCloseBtn');
+  let pushThemeTimer = null;
 
-  function applyTheme(id){
+  function applyTheme(id, opts){
+    opts = opts || {};
     if(id === 'night'){ root.removeAttribute('data-theme'); }
     else{ root.setAttribute('data-theme', id); }
     try{ localStorage.setItem('lenta_theme', id); }catch(e){}
     grid.querySelectorAll('.theme-swatch').forEach(btn=>{
       btn.classList.toggle('active', btn.dataset.themeId === id);
     });
+    if(!opts.fromRemote && window.LentaCloud && window.LentaCloud.currentUser){
+      if(pushThemeTimer) clearTimeout(pushThemeTimer);
+      pushThemeTimer = setTimeout(()=> window.LentaCloud.pushState({ theme: id }), 350);
+    }
   }
+  window.__applyLentaTheme = (id)=> applyTheme(id, { fromRemote: true });
 
   grid.querySelectorAll('.theme-swatch').forEach(btn=>{
     btn.addEventListener('click', ()=> applyTheme(btn.dataset.themeId));
@@ -1847,28 +2044,9 @@
   let saved = 'night';
   try{ saved = localStorage.getItem('lenta_theme') || 'night'; }catch(e){}
   if(!THEMES.includes(saved)) saved = 'night';
-  applyTheme(saved);
+  applyTheme(saved, { fromRemote: true });
 })();
 </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
