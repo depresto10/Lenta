@@ -1200,7 +1200,17 @@
       strip.appendChild(cell);
     }
     const sel = strip.querySelector('[data-selected="1"]');
-    if(sel) sel.scrollIntoView({ inline:'center', block:'nearest' });
+    // Wait two animation frames so the browser has actually laid out the 91
+    // freshly-appended cells before we ask it to center one of them —
+    // otherwise (most visible right after login, before layout settles)
+    // scrollIntoView silently no-ops and the strip is left at scrollLeft:0.
+    if(sel){
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          sel.scrollIntoView({ inline:'center', block:'nearest' });
+        });
+      });
+    }
   }
 
   function renderReceipt(){
