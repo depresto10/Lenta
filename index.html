@@ -703,6 +703,13 @@
   let suppressNextSnapshot = false;
   let onRemoteState = null;
   let onAuthReady = null;
+  // If a Firestore snapshot arrives before the main app script has finished
+  // loading and called setOnRemoteState(), the data used to be silently
+  // dropped (onRemoteState was still null) while the sync badge still
+  // reported "synced" — leaving the UI stuck empty until the next remote
+  // change. We stash that first snapshot here and replay it the moment a
+  // handler is registered.
+  let pendingRemoteState = null;
 
   function userDocRef(uid){ return doc(db, 'users', uid, 'lenta', 'data'); }
 
@@ -732,8 +739,9 @@
     if(unsubscribeSnapshot) unsubscribeSnapshot();
     unsubscribeSnapshot = onSnapshot(userDocRef(uid), (snap)=>{
       if(suppressNextSnapshot){ suppressNextSnapshot = false; return; }
-      if(snap.exists() && onRemoteState){
-        onRemoteState(snap.data());
+      if(snap.exists()){
+        if(onRemoteState){ onRemoteState(snap.data()); }
+        else{ pendingRemoteState = snap.data(); }
       }
       setSyncBadge('synced');
     }, (err)=>{
@@ -844,7 +852,10 @@
   window.LentaCloud = {
     pushState,
     signOut: ()=> signOut(auth),
-    setOnRemoteState(fn){ onRemoteState = fn; },
+    setOnRemoteState(fn){
+      onRemoteState = fn;
+      if(pendingRemoteState){ fn(pendingRemoteState); pendingRemoteState = null; }
+    },
     setOnAuthReady(fn){ onAuthReady = fn; },
     get currentUser(){ return currentUser; },
     setSyncBadge,
