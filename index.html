@@ -1115,6 +1115,19 @@
       periods.push({ start: nextStart, end: nextEnd });
       changed = true;
     }
+    // Same idea backward: a date earlier than the earliest known period (e.g.
+    // right after migration, when only "today's" period exists) still needs
+    // somewhere to land — otherwise it falls back to the nearest existing
+    // period and silently shows the wrong totals. Backfill using the
+    // earliest period's own length as the template.
+    while(periods[0].start > untilIso){
+      const first = periods[0];
+      const len = daysBetweenIso(first.start, first.end) + 1;
+      const prevEnd = addDaysIso(first.start, -1);
+      const prevStart = addDaysIso(prevEnd, -(len - 1));
+      periods.unshift({ start: prevStart, end: prevEnd });
+      changed = true;
+    }
     if(changed) persistPeriods();
   }
 
