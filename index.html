@@ -2123,6 +2123,7 @@
       document.addEventListener('click', onDocClick);
       document.addEventListener('keydown', onKey);
     }, 0);
+  }
 
   document.getElementById('exportBtn').addEventListener('click', ()=>{
     const payload = JSON.stringify({ entries, customCats, savingsEntries, customCurrencies, periods }, null, 2);
