@@ -738,7 +738,8 @@
   function watchUserDoc(uid){
     if(unsubscribeSnapshot) unsubscribeSnapshot();
     unsubscribeSnapshot = onSnapshot(userDocRef(uid), (snap)=>{
-      if(suppressNextSnapshot){ suppressNextSnapshot = false; return; }
+      if(suppressNextSnapshot){ console.log('[LentaDebug] snapshot suppressed (echo of own write)'); suppressNextSnapshot = false; return; }
+      console.log('[LentaDebug] snapshot received, exists=', snap.exists(), 'entries in doc=', snap.exists() ? (snap.data().entries||[]).length : 'n/a', 'has onRemoteState handler=', !!onRemoteState);
       if(snap.exists()){
         if(onRemoteState){ onRemoteState(snap.data()); }
         else{ pendingRemoteState = snap.data(); }
@@ -854,7 +855,8 @@
     signOut: ()=> signOut(auth),
     setOnRemoteState(fn){
       onRemoteState = fn;
-      if(pendingRemoteState){ fn(pendingRemoteState); pendingRemoteState = null; }
+      if(pendingRemoteState){ console.log('[LentaDebug] replaying buffered snapshot, entries.length=', (pendingRemoteState.entries||[]).length); fn(pendingRemoteState); pendingRemoteState = null; }
+      else{ console.log('[LentaDebug] setOnRemoteState registered, no buffered snapshot waiting'); }
     },
     setOnAuthReady(fn){ onAuthReady = fn; },
     get currentUser(){ return currentUser; },
@@ -1124,6 +1126,7 @@
   window.addEventListener('pagehide', flushPendingPush);
 
   function applyRemoteState(data){
+    console.log('[LentaDebug] applyRemoteState called with entries.length=', (data.entries||[]).length, 'periodStartDay=', data.periodStartDay);
     if(data.entries) entries = data.entries;
     if(data.customCats) customCats = data.customCats;
     if(data.categoryOverrides) categoryOverrides = data.categoryOverrides;
@@ -1137,6 +1140,7 @@
     if(data.theme && window.__applyLentaTheme) window.__applyLentaTheme(data.theme);
     const periodInput = document.getElementById('periodStartDayInput');
     if(periodInput) periodInput.value = periodStartDay;
+    console.log('[LentaDebug] after assignment, live entries.length=', entries.length, 'about to call renderAll()');
     renderAll();
   }
 
