@@ -1327,7 +1327,7 @@
       const cell = document.createElement('div');
       cell.className = 'day-cell' + (isWeekend?' weekend':'') + (isSelected?' selected':'') + (isToday?' today':'') + (hasEntries?' has-entries':'');
       cell.innerHTML = `<span class="dow">${DOW_SHORT()[dow]}</span><span class="num">${d.getDate()}</span><span class="dot"></span>`;
-      cell.addEventListener('click', ()=>{ selectedDate = d; renderMonthLabel(); renderWeekStrip(); renderReceipt(); });
+      cell.addEventListener('click', ()=>{ selectedDate = d; renderAll(); });
       if(isSelected) cell.dataset.selected = '1';
       strip.appendChild(cell);
     }
