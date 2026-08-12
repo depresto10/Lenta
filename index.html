@@ -738,8 +738,7 @@
   function watchUserDoc(uid){
     if(unsubscribeSnapshot) unsubscribeSnapshot();
     unsubscribeSnapshot = onSnapshot(userDocRef(uid), (snap)=>{
-      if(suppressNextSnapshot){ console.log('[LentaDebug] snapshot suppressed (echo of own write)'); suppressNextSnapshot = false; return; }
-      console.log('[LentaDebug] snapshot received, exists=', snap.exists(), 'entries in doc=', snap.exists() ? (snap.data().entries||[]).length : 'n/a', 'has onRemoteState handler=', !!onRemoteState);
+      if(suppressNextSnapshot){ suppressNextSnapshot = false; return; }
       if(snap.exists()){
         if(onRemoteState){ onRemoteState(snap.data()); }
         else{ pendingRemoteState = snap.data(); }
@@ -855,8 +854,7 @@
     signOut: ()=> signOut(auth),
     setOnRemoteState(fn){
       onRemoteState = fn;
-      if(pendingRemoteState){ console.log('[LentaDebug] replaying buffered snapshot, entries.length=', (pendingRemoteState.entries||[]).length); fn(pendingRemoteState); pendingRemoteState = null; }
-      else{ console.log('[LentaDebug] setOnRemoteState registered, no buffered snapshot waiting'); }
+      if(pendingRemoteState){ fn(pendingRemoteState); pendingRemoteState = null; }
     },
     setOnAuthReady(fn){ onAuthReady = fn; },
     get currentUser(){ return currentUser; },
@@ -1126,7 +1124,6 @@
   window.addEventListener('pagehide', flushPendingPush);
 
   function applyRemoteState(data){
-    console.log('[LentaDebug] applyRemoteState called with entries.length=', (data.entries||[]).length, 'periodStartDay=', data.periodStartDay);
     if(data.entries) entries = data.entries;
     if(data.customCats) customCats = data.customCats;
     if(data.categoryOverrides) categoryOverrides = data.categoryOverrides;
@@ -1140,14 +1137,25 @@
     if(data.theme && window.__applyLentaTheme) window.__applyLentaTheme(data.theme);
     const periodInput = document.getElementById('periodStartDayInput');
     if(periodInput) periodInput.value = periodStartDay;
-    console.log('[LentaDebug] after assignment, live entries.length=', entries.length, 'about to call renderAll()');
     renderAll();
   }
 
-  if(window.LentaCloud){
-    window.LentaCloud.setOnRemoteState(applyRemoteState);
-    window.LentaCloud.setOnAuthReady(()=>{ fetchFxRates(); });
-  }
+  // window.LentaCloud is exposed by a <script type="module"> block. Module
+  // scripts always execute AFTER classic scripts have already run (they're
+  // deferred by spec), so a one-time `if(window.LentaCloud)` check here was
+  // guaranteed to fail on every single page load — the cloud module simply
+  // hadn't assigned window.LentaCloud yet. That meant applyRemoteState was
+  // never wired up, entries loaded from Firestore were silently discarded,
+  // and every fresh session started from an empty local state. Poll briefly
+  // until the module is actually ready instead of checking only once.
+  (function registerWithLentaCloud(){
+    if(window.LentaCloud){
+      window.LentaCloud.setOnRemoteState(applyRemoteState);
+      window.LentaCloud.setOnAuthReady(()=>{ fetchFxRates(); });
+    }else{
+      setTimeout(registerWithLentaCloud, 20);
+    }
+  })();
 
   function persistEntries(){ schedulePush(); }
   function persistCustomCats(){ schedulePush(); }
