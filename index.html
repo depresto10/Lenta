@@ -244,9 +244,11 @@
   .carry-note{ display:none; font-family:'Space Mono',monospace; font-size:8px; color:var(--fg-muted); margin-top:4px; letter-spacing:.2px; line-height:1.3; }
   .carry-note.show{ display:block; }
 
-  .period-day-row{ display:flex; align-items:center; gap:10px; padding: 4px 8px 10px; }
-  .period-day-row input{ width:64px; padding:8px 10px; border-radius:8px; border:1px solid var(--surface-3); background:var(--surface); color:var(--fg); font-family:'Space Mono',monospace; font-size:14px; text-align:center; }
+  .period-edit-row{ display:flex; align-items:flex-end; gap:10px; padding: 4px 8px 10px; flex-wrap:wrap; }
+  .period-edit-field{ display:flex; flex-direction:column; gap:5px; font-family:'Manrope',sans-serif; font-size:11px; color: var(--fg-muted); flex:1; min-width:120px; }
+  .period-edit-field input{ padding:8px 10px; border-radius:8px; border:1px solid var(--surface-3); background:var(--surface); color:var(--fg); font-family:'Space Mono',monospace; font-size:13px; }
   .period-day-hint{ font-family:'Manrope',sans-serif; font-size:12px; color: var(--fg-muted); padding: 4px 8px 2px; }
+  .period-day-hint.warn{ color: var(--red-c); }
 
   .category-breakdown{ position:relative; z-index:1; margin-bottom: 30px; }
 
@@ -587,11 +589,18 @@
     </button>
 
     <div class="drawer-title" data-i18n="menuPeriod">Отчётный период</div>
-    <div class="period-day-hint" data-i18n="menuPeriodHint">День начала периода (например, день зарплаты)</div>
-    <div class="period-day-row">
-      <input type="number" id="periodStartDayInput" min="1" max="31" inputmode="numeric" />
-      <span class="di-hint" id="periodRangePreview"></span>
+    <div class="period-day-hint" data-i18n="menuPeriodHint">Границы периода задаются вручную — как даты в бронировании поездки</div>
+    <div class="period-edit-row">
+      <label class="period-edit-field">
+        <span data-i18n="periodStartLabel">Начало</span>
+        <input type="date" id="periodStartInput" />
+      </label>
+      <label class="period-edit-field">
+        <span data-i18n="periodEndLabel">Конец</span>
+        <input type="date" id="periodEndInput" />
+      </label>
     </div>
+    <div class="period-day-hint warn" id="periodEditWarn" style="display:none;"></div>
 
     <div class="drawer-title" data-i18n="menuAppearance">Оформление</div>
     <button type="button" class="drawer-item" id="openThemeFromDrawer">
@@ -754,10 +763,18 @@
     const ref = userDocRef(uid);
     const snap = await getDoc(ref);
     if(!snap.exists()){
+      // Default first period: the current calendar month. From here on the
+      // user owns the boundaries — this is just a sane starting point.
+      const now = new Date();
+      const pad = (n)=> String(n).padStart(2,'0');
+      const isoLocal = (dt)=> `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastOfMonth = new Date(now.getFullYear(), now.getMonth()+1, 0);
       await setDoc(ref, {
         entries: [], customCats: {expense:[], income:[]}, categoryOverrides: {},
         categoryHidden: [], savingsEntries: [], customCurrencies: [],
-        displayCurrency: 'BYN', periodStartDay: 1, lang: 'ru', theme: 'night',
+        displayCurrency: 'BYN', periods: [{ start: isoLocal(firstOfMonth), end: isoLocal(lastOfMonth) }],
+        lang: 'ru', theme: 'night',
         createdAt: serverTimestamp(), updatedAt: serverTimestamp()
       });
     }
@@ -900,7 +917,8 @@
       catMgrDone:'Готово',
       menuAccount:'Аккаунт', menuLogout:'Выйти из аккаунта',
       menuCategories:'Статьи', menuCatManage:'Редактировать статьи',
-      menuPeriod:'Отчётный период', menuPeriodHint:'День начала периода (например, день зарплаты)',
+      menuPeriod:'Отчётный период', menuPeriodHint:'Границы периода задаются вручную — как даты в бронировании поездки',
+      periodStartLabel:'Начало', periodEndLabel:'Конец', periodOverlapWarn:'Даты пересекаются с соседним периодом',
       carryIncluded:'вкл. перенос',
       menuAppearance:'Оформление', menuTheme:'Тема оформления', menuDisplayCurrency:'Валюта отображения (накопления)',
       menuLanguage:'Язык / Language', menuData:'Данные', menuExport:'Резервная копия',
@@ -934,7 +952,8 @@
       catMgrDone:'Done',
       menuAccount:'Account', menuLogout:'Sign out',
       menuCategories:'Categories', menuCatManage:'Edit categories',
-      menuPeriod:'Reporting period', menuPeriodHint:'Period start day (e.g. payday)',
+      menuPeriod:'Reporting period', menuPeriodHint:'Period boundaries are set manually — like picking dates for a trip',
+      periodStartLabel:'Start', periodEndLabel:'End', periodOverlapWarn:'Dates overlap with the neighboring period',
       carryIncluded:'incl. carryover',
       menuAppearance:'Appearance', menuTheme:'Theme', menuDisplayCurrency:'Display currency (savings)',
       menuLanguage:'Язык / Language', menuData:'Data', menuExport:'Backup',
@@ -1046,32 +1065,85 @@
   let selectedDate = new Date();
   let sheetType = 'expense';
   let sheetCatKey = null;
-  let periodStartDay = 1;
+  // Periods are explicit date ranges the user owns — [{start:'YYYY-MM-DD', end:'YYYY-MM-DD'}, ...],
+  // kept sorted ascending by start. Replaces the old "day of month" auto-repeat model.
+  let periods = [];
 
   function iso(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
   function addDays(d,n){ const nd=new Date(d); nd.setDate(nd.getDate()+n); return nd; }
-  function clampDayInMonth(y,m,day){ const last = new Date(y, m+1, 0).getDate(); return Math.min(day, last); }
-  function getPeriodRange(date){
+  function addDaysIso(dIso, n){ const d = new Date(dIso+'T00:00:00'); d.setDate(d.getDate()+n); return iso(d); }
+  function daysBetweenIso(a,b){ return Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00')) / 86400000); }
+  function sortPeriods(){ periods.sort((a,b)=> a.start.localeCompare(b.start)); }
+
+  // One-time conversion from the old periodStartDay ("day of month it repeats
+  // on") setting into a single explicit period, used only for migrating
+  // legacy cloud data / backup files. Not used anywhere else.
+  function legacyPeriodRangeFromStartDay(periodStartDay, date){
+    const clamp = (yy,mm,day)=>{ const last = new Date(yy, mm+1, 0).getDate(); return Math.min(day, last); };
     const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
     let startY = y, startM = m;
-    if(d < periodStartDay){
-      startM = m - 1;
-      if(startM < 0){ startM = 11; startY = y - 1; }
-    }
-    const startDay = clampDayInMonth(startY, startM, periodStartDay);
+    if(d < periodStartDay){ startM = m - 1; if(startM < 0){ startM = 11; startY = y - 1; } }
+    const startDay = clamp(startY, startM, periodStartDay);
     const start = new Date(startY, startM, startDay);
     let endY = startY, endM = startM + 1;
     if(endM > 11){ endM = 0; endY = startY + 1; }
-    const nextStartDay = clampDayInMonth(endY, endM, periodStartDay);
+    const nextStartDay = clamp(endY, endM, periodStartDay);
     const end = new Date(endY, endM, nextStartDay);
     end.setDate(end.getDate() - 1);
-    return { start, end };
+    return { start: iso(start), end: iso(end) };
+  }
+
+  // Auto-continuation: whenever we need to look at a date beyond the last
+  // known period, extend the list forward using the last period's own length
+  // as the recurring cadence — so "the next period starts the day after this
+  // one ends" without the user ever having to pick a start date manually.
+  function ensurePeriodsCoverDate(untilIso){
+    if(periods.length === 0){
+      const d = new Date(untilIso+'T00:00:00');
+      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end = new Date(d.getFullYear(), d.getMonth()+1, 0);
+      periods.push({ start: iso(start), end: iso(end) });
+      persistPeriods();
+      return;
+    }
+    let changed = false;
+    while(periods[periods.length-1].end < untilIso){
+      const last = periods[periods.length-1];
+      const len = daysBetweenIso(last.start, last.end) + 1;
+      const nextStart = addDaysIso(last.end, 1);
+      const nextEnd = addDaysIso(nextStart, len - 1);
+      periods.push({ start: nextStart, end: nextEnd });
+      changed = true;
+    }
+    if(changed) persistPeriods();
+  }
+
+  // Finds the period containing dIso. If dIso falls in a gap the user left
+  // between two periods, falls back to whichever period is closest.
+  function findPeriodIndexForDate(dIso){
+    ensurePeriodsCoverDate(dIso);
+    let idx = periods.findIndex(pp=> dIso >= pp.start && dIso <= pp.end);
+    if(idx !== -1) return idx;
+    let best = 0, bestDist = Infinity;
+    periods.forEach((pp,i)=>{
+      const dist = dIso < pp.start ? daysBetweenIso(dIso, pp.start) : daysBetweenIso(pp.end, dIso);
+      if(dist < bestDist){ bestDist = dist; best = i; }
+    });
+    return best;
+  }
+  function getPeriodRange(date){
+    const p = periods[findPeriodIndexForDate(iso(date))];
+    return { start: new Date(p.start+'T00:00:00'), end: new Date(p.end+'T00:00:00') };
   }
   function shiftPeriod(date, dir){
-    const { start, end } = getPeriodRange(date);
-    const nd = dir < 0 ? new Date(start) : new Date(end);
-    nd.setDate(nd.getDate() + dir);
-    return nd;
+    const idx = findPeriodIndexForDate(iso(date));
+    let targetIdx = idx + dir;
+    if(targetIdx < 0) targetIdx = 0;
+    if(targetIdx >= periods.length){
+      ensurePeriodsCoverDate(addDaysIso(periods[periods.length-1].end, 1));
+      targetIdx = periods.length - 1;
+    }
+    return new Date(periods[targetIdx].start + 'T00:00:00');
   }
   function openingBalanceForPeriod(date){
     const { start } = getPeriodRange(date);
@@ -1097,7 +1169,7 @@
     return {
       entries, customCats, categoryOverrides, categoryHidden,
       savingsEntries, customCurrencies, displayCurrency,
-      periodStartDay, lang: currentLang, theme: (localStorage.getItem('lenta_theme') || 'night')
+      periods, lang: currentLang, theme: (localStorage.getItem('lenta_theme') || 'night')
     };
   }
   function schedulePush(){
@@ -1132,11 +1204,20 @@
     if(data.savingsEntries) savingsEntries = data.savingsEntries;
     if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
     if(data.displayCurrency) displayCurrency = data.displayCurrency;
-    if(typeof data.periodStartDay === 'number') periodStartDay = data.periodStartDay;
+    if(Array.isArray(data.periods) && data.periods.length){
+      periods = data.periods.slice();
+      sortPeriods();
+    }else if(typeof data.periodStartDay === 'number'){
+      // One-time migration from the old auto-repeating "day of month" setting.
+      periods = [legacyPeriodRangeFromStartDay(data.periodStartDay, new Date())];
+      persistPeriods();
+    }else if(!periods.length){
+      const now = new Date();
+      periods = [{ start: iso(new Date(now.getFullYear(), now.getMonth(), 1)), end: iso(new Date(now.getFullYear(), now.getMonth()+1, 0)) }];
+    }
     if(data.lang && I18N[data.lang]){ currentLang = data.lang; applyI18n(); document.querySelectorAll('#langToggle button').forEach(b=> b.classList.toggle('active', b.dataset.lang===currentLang)); }
     if(data.theme && window.__applyLentaTheme) window.__applyLentaTheme(data.theme);
-    const periodInput = document.getElementById('periodStartDayInput');
-    if(periodInput) periodInput.value = periodStartDay;
+    renderPeriodEditor();
     renderAll();
   }
 
@@ -1163,16 +1244,44 @@
   function persistCustomCurrencies(){ schedulePush(); }
   function persistCatOverrides(){ schedulePush(); }
   function persistCatHidden(){ schedulePush(); }
-  function persistPeriodStartDay(){ schedulePush(); }
+  function persistPeriods(){ schedulePush(); }
   function persistDisplayCurrency(){ schedulePush(); }
   function persistLang(){ schedulePush(); }
 
-  function renderPeriodRangePreview(){
-    const el = document.getElementById('periodRangePreview');
-    if(!el) return;
-    const { start, end } = getPeriodRange(selectedDate);
-    const dd = (d)=> String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0');
-    el.textContent = `${dd(start)} – ${dd(end)}`;
+  function renderPeriodEditor(){
+    const startEl = document.getElementById('periodStartInput');
+    const endEl = document.getElementById('periodEndInput');
+    const warnEl = document.getElementById('periodEditWarn');
+    if(!startEl || !endEl) return;
+    const p = periods[findPeriodIndexForDate(iso(selectedDate))];
+    if(!p) return;
+    startEl.value = p.start;
+    endEl.value = p.end;
+    if(warnEl) warnEl.style.display = 'none';
+  }
+
+  function applyPeriodEdit(field, newIso){
+    const warnEl = document.getElementById('periodEditWarn');
+    const idx = findPeriodIndexForDate(iso(selectedDate));
+    const p = periods[idx];
+    const prev = periods[idx-1];
+    const next = periods[idx+1];
+    const reject = ()=>{
+      if(warnEl){ warnEl.textContent = t('periodOverlapWarn'); warnEl.style.display = 'block'; }
+      renderPeriodEditor();
+    };
+    if(field === 'start'){
+      if(newIso > p.end) return reject();
+      if(prev && newIso <= prev.end) return reject();
+      p.start = newIso;
+    }else{
+      if(newIso < p.start) return reject();
+      if(next && newIso >= next.start) return reject();
+      p.end = newIso;
+    }
+    persistPeriods();
+    renderPeriodEditor();
+    renderAll();
   }
 
   function addCustomCategory(type, name){
@@ -1199,7 +1308,7 @@
     document.getElementById('monthLabel').textContent = `${MONTHS()[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
     const todayBtn = document.getElementById('todayBtn');
     todayBtn.classList.toggle('show', iso(selectedDate) !== iso(new Date()));
-    renderPeriodRangePreview();
+    renderPeriodEditor();
   }
 
   function renderWeekStrip(){
@@ -1717,7 +1826,7 @@
   }
 
   document.getElementById('exportBtn').addEventListener('click', ()=>{
-    const payload = JSON.stringify({ entries, customCats, savingsEntries, customCurrencies, periodStartDay }, null, 2);
+    const payload = JSON.stringify({ entries, customCats, savingsEntries, customCurrencies, periods }, null, 2);
     const blob = new Blob([payload], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1740,10 +1849,14 @@
         if(data.customCats){ customCats = data.customCats; rebuildCats(); }
         if(Array.isArray(data.savingsEntries)) savingsEntries = data.savingsEntries;
         if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
-        if(typeof data.periodStartDay === 'number' && data.periodStartDay >= 1 && data.periodStartDay <= 31){
-          periodStartDay = data.periodStartDay;
-          const periodInput = document.getElementById('periodStartDayInput');
-          if(periodInput) periodInput.value = periodStartDay;
+        if(Array.isArray(data.periods) && data.periods.length){
+          periods = data.periods.slice();
+          sortPeriods();
+          renderPeriodEditor();
+        }else if(typeof data.periodStartDay === 'number' && data.periodStartDay >= 1 && data.periodStartDay <= 31){
+          // Restoring an old backup file that predates explicit periods.
+          periods = [legacyPeriodRangeFromStartDay(data.periodStartDay, new Date())];
+          renderPeriodEditor();
         }
         // A restore is a big, deliberate one-shot action — push straight to
         // Firestore instead of scheduling a debounced write, so the data is
@@ -2009,15 +2122,13 @@
   document.getElementById('drawerClose').addEventListener('click', closeDrawer);
   drawerOverlay.addEventListener('click', (e)=>{ if(e.target===drawerOverlay) closeDrawer(); });
 
-  document.getElementById('periodStartDayInput').addEventListener('change', (e)=>{
-    let v = parseInt(e.target.value, 10);
-    if(isNaN(v) || v < 1) v = 1;
-    if(v > 31) v = 31;
-    periodStartDay = v;
-    e.target.value = v;
-    persistPeriodStartDay();
-    renderPeriodRangePreview();
-    renderAll();
+  document.getElementById('periodStartInput').addEventListener('change', (e)=>{
+    if(!e.target.value) return;
+    applyPeriodEdit('start', e.target.value);
+  });
+  document.getElementById('periodEndInput').addEventListener('change', (e)=>{
+    if(!e.target.value) return;
+    applyPeriodEdit('end', e.target.value);
   });
 
   document.getElementById('openCatMgr').addEventListener('click', ()=>{ closeDrawer(); openCatMgr(); });
@@ -2048,16 +2159,19 @@
     if(!confirm(t('confirmReset'))) return;
     entries = []; customCats = {expense:[], income:[]}; categoryOverrides = {}; categoryHidden = [];
     savingsEntries = []; customCurrencies = []; CURRENCIES = [...DEFAULT_CURRENCIES];
-    displayCurrency = 'BYN'; periodStartDay = 1;
+    displayCurrency = 'BYN';
+    { const now = new Date(); periods = [{ start: iso(new Date(now.getFullYear(), now.getMonth(), 1)), end: iso(new Date(now.getFullYear(), now.getMonth()+1, 0)) }]; }
     rebuildCats();
     pushNow(); // one-shot action, don't leave it to the debounce
     ['lenta_fxRates','lenta_fxRatesTs','lenta_theme'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
     renderAll();
   });
 
-  const periodInput0 = document.getElementById('periodStartDayInput');
-  if(periodInput0) periodInput0.value = periodStartDay;
-  renderPeriodRangePreview();
+  if(!periods.length){
+    const now = new Date();
+    periods = [{ start: iso(new Date(now.getFullYear(), now.getMonth(), 1)), end: iso(new Date(now.getFullYear(), now.getMonth()+1, 0)) }];
+  }
+  renderPeriodEditor();
   applyI18n();
   renderAll();
 })();
