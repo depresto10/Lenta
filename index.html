@@ -1570,15 +1570,24 @@
     tEl.className = 'value ' + (total>0?'pos':(total<0?'neg':'zero'));
   }
 
+  // Та же логика, что и в removeSavingsEntry: данные и все сводки обновляются
+  // мгновенно, и только перерисовка самого чека откладывается на длительность
+  // анимации — иначе строка исчезла бы, не успев «погаситься».
   function removeEntry(id, rowEl){
     rowEl.classList.add('voiding');
-    setTimeout(()=>{
-      entries = entries.filter(e=>e.id!==id);
-      persistEntries();
-      const linkedRemoved = savingsEntries.some(s=>s.linkedEntryId===id);
-      if(linkedRemoved){ savingsEntries = savingsEntries.filter(s=>s.linkedEntryId!==id); persistSavings(); }
-      renderAll();
-    }, 320);
+    entries = entries.filter(e=>e.id!==id);
+    persistEntries();
+    const linkedRemoved = savingsEntries.some(s=>s.linkedEntryId===id);
+    if(linkedRemoved){ savingsEntries = savingsEntries.filter(s=>s.linkedEntryId!==id); persistSavings(); }
+    renderMonthLabel();
+    renderWeekStrip();
+    renderMonthSummary();
+    renderExpenseBreakdown();
+    renderIncomeBreakdown();
+    renderSavingsGrid();
+    renderSavingsHistory();
+    renderSavingsConverted();
+    setTimeout(()=>{ renderReceipt(); }, 320);
   }
 
   function monthEntries(){
@@ -1751,9 +1760,20 @@
     });
   }
 
+  // Итоги пересчитываются сразу, а не после анимации: раньше строка «гасилась»
+  // 320 мс, и только потом менялись данные — при этом renderSavingsConverted()
+  // вообще не вызывался, поэтому донат «всего» и список по валютам оставались
+  // со старыми числами до следующего полного renderAll (смена даты/периода или
+  // прилетевший снапшот из Firestore). Теперь запись убирается из массива
+  // мгновенно, все сводки перерисовываются тут же, а с задержкой доигрывается
+  // только список истории — чтобы не обрывать анимацию гашения строки.
   function removeSavingsEntry(id, rowEl){
     rowEl.classList.add('voiding');
-    setTimeout(()=>{ savingsEntries = savingsEntries.filter(e=>e.id!==id); persistSavings(); renderSavingsGrid(); renderSavingsHistory(); }, 320);
+    savingsEntries = savingsEntries.filter(e=>e.id!==id);
+    persistSavings();
+    renderSavingsGrid();
+    renderSavingsConverted();
+    setTimeout(()=>{ renderSavingsHistory(); }, 320);
   }
 
   const overlay = document.getElementById('sheetOverlay');
@@ -1948,6 +1968,7 @@
     closeSavingsSheet();
     renderSavingsGrid();
     renderSavingsHistory();
+    renderSavingsConverted();
   });
 
   document.querySelectorAll('[data-action="open-savings"]').forEach(btn=>{
