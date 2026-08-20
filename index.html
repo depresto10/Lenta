@@ -24,7 +24,7 @@
     --red-bg: rgba(178,58,46,.14);
     --paper-shadow: 0 30px 60px -25px rgba(0,0,0,.55);
 
-    --page-bg: var(--ink);
+    --page-bg: #000000;
     --fg: var(--paper);
     --fg-muted: #8d8574;
     --fg-muted-2: #c8c0ac;
@@ -36,8 +36,12 @@
     --surface-border-2: rgba(240,233,216,.3);
     --surface-hover: rgba(240,233,216,.16);
     --surface-hover-2: rgba(240,233,216,.36);
-    --decor1: rgba(201,162,39,.08);
-    --decor2: rgba(178,58,46,.07);
+    --decor1: rgba(240,235,225,.28);
+    --decor2: rgba(214,168,32,.62);
+    --decor1-pos: 50% -8%;
+    --decor1-size: 560px 400px;
+    --decor2-pos: 50% 108%;
+    --decor2-size: 650px 520px;
     --donut-track: rgba(240,233,216,.08);
     --green-c: var(--green);
     --green-c-bg: var(--green-bg);
@@ -49,21 +53,22 @@
   }
 
   html[data-theme="day"]{
-    --page-bg: linear-gradient(160deg,#FBF6EA 0%, #F0E6CF 100%);
+    --page-bg: #FFFDF8;
+    --paper: #FFFBF2;
     --fg: #241F14; --fg-muted:#7a7160; --fg-muted-2:#8f8672; --fg-faint:#a49c86;
     --surface: rgba(255,252,244,.55); --surface-2: rgba(28,26,20,.10); --surface-3: rgba(28,26,20,.14);
     --surface-border: rgba(28,26,20,.12); --surface-border-2: rgba(28,26,20,.22);
     --surface-hover: rgba(255,252,244,.75); --surface-hover-2: rgba(28,26,20,.2);
-    --decor1: rgba(201,162,39,.14); --decor2: rgba(178,58,46,.06);
+    --decor1: rgba(255,176,138,.20); --decor2: rgba(130,196,232,.20);
+    --decor1-pos: 8% -8%; --decor1-size: 520px 480px;
+    --decor2-pos: 100% 108%; --decor2-size: 540px 500px;
     --donut-track: rgba(28,26,20,.09);
-    --gold:#9C7A15; --gold-soft: rgba(156,122,21,.16);
+    --gold:#E8944A; --gold-soft: rgba(232,148,74,.18);
     --green-c:#1F6B45; --green-c-bg: rgba(31,107,69,.14);
     --red-c:#A82E22; --red-c-bg: rgba(168,46,34,.13);
   }
-  html[data-theme="sunset"],
   html[data-theme="ocean"],
-  html[data-theme="violet"],
-  html[data-theme="forest"]{
+  html[data-theme="violet"]{
     --fg:#F7F3FF; --fg-muted: rgba(255,255,255,.64); --fg-muted-2: rgba(255,255,255,.52); --fg-faint: rgba(255,255,255,.42);
     --surface: rgba(255,255,255,.15); --surface-2: rgba(255,255,255,.21); --surface-3: rgba(255,255,255,.28);
     --surface-border: rgba(255,255,255,.22); --surface-border-2: rgba(255,255,255,.36);
@@ -73,10 +78,6 @@
     --green-c:#7CF0AE; --green-c-bg: rgba(124,240,174,.2);
     --red-c:#FF9B8F; --red-c-bg: rgba(255,155,143,.2);
   }
-  html[data-theme="sunset"]{
-    --page-bg: linear-gradient(160deg,#3a1f3a 0%, #7a2f4d 45%, #d9713f 100%);
-    --gold:#FFB067; --gold-soft: rgba(255,176,103,.22);
-  }
   html[data-theme="ocean"]{
     --page-bg: linear-gradient(160deg,#0b3140 0%, #0f6f82 50%, #35c9c9 100%);
     --gold:#7CF0DD; --gold-soft: rgba(124,240,221,.2);
@@ -84,10 +85,6 @@
   html[data-theme="violet"]{
     --page-bg: linear-gradient(160deg,#231a4d 0%, #4c2e88 50%, #8a5aed 100%);
     --gold:#CBAAFF; --gold-soft: rgba(203,170,255,.22);
-  }
-  html[data-theme="forest"]{
-    --page-bg: linear-gradient(160deg,#0f2e1c 0%, #1f6b3a 50%, #92d93f 100%);
-    --gold:#DBFF74; --gold-soft: rgba(219,255,116,.22);
   }
 
   .theme-fab{
@@ -99,7 +96,7 @@
     color: var(--fg); transition: transform .12s ease;
   }
   .theme-fab:active{ transform: scale(.92); }
-  .theme-sheet-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-bottom: 6px; }
+  .theme-sheet-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:10px; margin-bottom: 6px; }
   .theme-swatch{
     border: 2px solid transparent; border-radius: 14px; padding: 0; height: 66px; cursor:pointer;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
@@ -108,12 +105,21 @@
   }
   .theme-swatch.active{ border-color: var(--text); box-shadow: 0 0 0 2px var(--paper) inset; }
   .theme-swatch.active::after{ content:'✓'; position:absolute; top:5px; right:7px; font-size:11px; line-height:1.4; }
-  .theme-swatch[data-theme-id="night"]{ background: linear-gradient(160deg,#1C1A22 0%, #262330 100%); }
-  .theme-swatch[data-theme-id="day"]{ background: linear-gradient(160deg,#FBF6EA 0%, #F0E6CF 100%); color:#241F14; text-shadow:none; }
-  .theme-swatch[data-theme-id="sunset"]{ background: linear-gradient(160deg,#3a1f3a 0%, #7a2f4d 45%, #d9713f 100%); }
+  .theme-swatch[data-theme-id="night"]{
+    background:
+      radial-gradient(ellipse 140px 90px at 50% -15%, rgba(240,235,225,.4), transparent 65%),
+      radial-gradient(ellipse 160px 120px at 50% 125%, rgba(214,168,32,.7), transparent 65%),
+      #000000;
+  }
+  .theme-swatch[data-theme-id="day"]{
+    background:
+      radial-gradient(ellipse 130px 130px at 5% -20%, rgba(255,176,138,.6), transparent 65%),
+      radial-gradient(ellipse 140px 140px at 115% 130%, rgba(130,196,232,.6), transparent 65%),
+      #FFFDF8;
+    color:#241F14; text-shadow:none;
+  }
   .theme-swatch[data-theme-id="ocean"]{ background: linear-gradient(160deg,#0b3140 0%, #0f6f82 50%, #35c9c9 100%); }
   .theme-swatch[data-theme-id="violet"]{ background: linear-gradient(160deg,#231a4d 0%, #4c2e88 50%, #8a5aed 100%); }
-  .theme-swatch[data-theme-id="forest"]{ background: linear-gradient(160deg,#0f2e1c 0%, #1f6b3a 50%, #92d93f 100%); }
 
   *{ box-sizing: border-box; }
   html,body{ margin:0; padding:0; overflow-x: hidden; overscroll-behavior-y: none; }
@@ -133,8 +139,8 @@
     content:'';
     position: fixed; inset:0;
     background:
-      radial-gradient(ellipse 500px 300px at 15% -5%, var(--decor1), transparent 60%),
-      radial-gradient(ellipse 600px 400px at 100% 10%, var(--decor2), transparent 60%);
+      radial-gradient(ellipse var(--decor1-size, 500px 300px) at var(--decor1-pos, 15% -5%), var(--decor1), transparent 68%),
+      radial-gradient(ellipse var(--decor2-size, 600px 400px) at var(--decor2-pos, 100% 10%), var(--decor2), transparent 68%);
     pointer-events: none;
     z-index: 0;
   }
@@ -472,7 +478,7 @@
      independent of the in-app theme picker which only applies after login.
      CSS vars are overridden locally here so a previously-selected theme
      (html[data-theme="..."]) never leaks into the auth screen. */
-  .auth-screen{
+  .auth-screen, .auth-loading{
     position:fixed; inset:0; z-index:100; overflow:hidden;
     background: linear-gradient(160deg,#231a4d 0%, #4c2e88 50%, #8a5aed 100%);
     display:flex; align-items:center; justify-content:center; padding: 24px;
@@ -488,7 +494,7 @@
     --mascot-size: 100%; --mascot-x: 0px;
   }
   @media (min-width: 720px){
-    .auth-screen{
+    .auth-screen, .auth-loading{
       background:
         radial-gradient(ellipse 900px 750px at 50% 100%, #a97fff 0%, #6a3fc4 38%, #2a1a5e 68%, #180f38 100%);
       align-items: flex-start; padding-top: 7vh;
@@ -524,7 +530,14 @@
   .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background: var(--surface-3); }
   .auth-google-btn{ width:100%; height:52px; border:1px solid var(--surface-3); border-radius: 999px; padding: 0 16px; font-family:'Onest',sans-serif; font-weight:700; font-size:14px; line-height:1; color: var(--fg); background: var(--surface); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; transition: border-color .15s, background .15s, opacity .15s; }
   .auth-google-btn:hover{ border-color: var(--surface-hover-2); background: var(--surface-hover); }
-  .auth-loading{ position:fixed; inset:0; z-index:100; background: var(--page-bg); display:flex; align-items:center; justify-content:center; color: var(--fg-muted); font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.4; letter-spacing:1.5px; }
+  .auth-loading-card{ position:relative; z-index:1; text-align:center; }
+  .auth-loading-card .brand-mark{ font-size:28px; line-height:1.4; }
+  .auth-loading-card .brand-sub{ display:block; margin-top:4px; }
+  .auth-loading-dots{ display:flex; align-items:center; justify-content:center; gap:7px; margin-top:32px; }
+  .auth-loading-dots span{ width:6px; height:6px; border-radius:50%; background: var(--gold); animation: authLoadingPulse 1.1s ease-in-out infinite; }
+  .auth-loading-dots span:nth-child(2){ animation-delay:.15s; }
+  .auth-loading-dots span:nth-child(3){ animation-delay:.3s; }
+  @keyframes authLoadingPulse{ 0%,80%,100%{ opacity:.25; transform:scale(.75); } 40%{ opacity:1; transform:scale(1); } }
   .auth-account-email{ flex:1; min-width:0; font-family:'Onest',sans-serif; font-size:14px; line-height:1.4; font-weight:600; color: var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sync-badge{ display:inline-flex; align-items:center; gap:6px; font-family:'Onest',sans-serif; font-size:12px; line-height:1.4; font-weight:700; letter-spacing:.2px; color: var(--fg-muted-2); flex-shrink:0; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); transition: color .2s, background .2s; }
   .sync-badge .dot{ width:6px; height:6px; border-radius:50%; background: var(--fg-faint); flex-shrink:0; transition: background .2s; }
@@ -547,7 +560,15 @@
 </head>
 <body>
 
-<div class="auth-loading" id="authLoading">ЗАГРУЗКА…</div>
+<div class="auth-loading" id="authLoading">
+  <img class="auth-mascot auth-mascot-mobile" src="mascot-right.png" alt="" aria-hidden="true" />
+  <img class="auth-mascot auth-mascot-desktop" src="mascot.png" alt="" aria-hidden="true" />
+  <div class="auth-loading-card">
+    <span class="brand-mark">ЛЕНТА</span><br/>
+    <span class="brand-sub">учёт доходов и расходов</span>
+    <div class="auth-loading-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+  </div>
+</div>
 
 <div class="auth-screen" id="authScreen" style="display:none;">
   <img class="auth-mascot auth-mascot-mobile" src="mascot-right.png" alt="" aria-hidden="true" />
@@ -1210,16 +1231,12 @@
   const THEME_PALETTES = {
     night:  { expense: ['#B23A2E','#C9A227','#8a4a2e','#6a4a6b','#3f6b6a','#7a7440','#a15c3e','#4f5d75','#9c6b30','#5c8a6a','#7a3f5a','#3a5a8a','#b06a9a','#4a7a9e'],
               income:  ['#2F6B4F','#C9A227','#3f6b6a','#5c8a6a','#4f5d75','#7a7440','#9c6b30','#3a5a8a','#7a3f5a','#a15c3e'] },
-    day:    { expense: ['#A82E22','#9C7A15','#7a4020','#5a4560','#2f5b5a','#6a6535','#8a5030','#455066','#8a5c28','#4f7a5c','#6a3550','#30507a','#9a5a86','#3a6a8a'],
-              income:  ['#1F6B45','#9C7A15','#2f5b5a','#4f7a5c','#455066','#6a6535','#8a5c28','#30507a','#6a3550','#8a5030'] },
-    sunset: { expense: ['#FF8A65','#FFB067','#FF6F91','#C97BD6','#7BD6C9','#FFD166','#E8845C','#9E8FE0','#F2A65A','#7BC4D6','#D67BAA','#8AA6E0','#F0A6C9','#7BE0B8'],
-              income:  ['#7CF0AE','#FFB067','#7BD6C9','#B8E07B','#9E8FE0','#FFD166','#F2A65A','#8AA6E0','#D67BAA','#E8845C'] },
+    day:    { expense: ['#E0574A','#E8944A','#4FA0D9','#8B6FD6','#4FAE8A','#D97D8A','#D9A441','#6FA8DC','#5FAE7A','#C77DD4','#E0729A','#5B8FD6','#4FC9C4','#D67DC2'],
+              income:  ['#4FAE8A','#5FAE7A','#4FA0D9','#8B6FD6','#D9A441','#4FC9C4','#6FA8DC','#E0729A','#C77DD4','#5B8FD6'] },
     ocean:  { expense: ['#FF9B8F','#7CF0DD','#FFD98A','#B39DFF','#7CD9F0','#8AF0A8','#F0A8D9','#C9E07B','#F0C27C','#9BC9FF','#E0A6F0','#7CF0B0','#F08A9B','#A8C9F0'],
               income:  ['#8AF0A8','#7CF0DD','#B39DFF','#C9E07B','#9BC9FF','#FFD98A','#F0C27C','#7CD9F0','#E0A6F0','#F0A8D9'] },
     violet: { expense: ['#FF9B8F','#CBAAFF','#FFB6C9','#7CF0AE','#8AC9FF','#FFD98A','#E0A6F0','#C9E07B','#F0A8D9','#7CD9F0','#F0C27C','#B39DFF','#8AF0D9','#FFA6A6'],
               income:  ['#7CF0AE','#CBAAFF','#8AC9FF','#C9E07B','#F0A8D9','#FFD98A','#8AF0D9','#7CD9F0','#B39DFF','#F0C27C'] },
-    forest: { expense: ['#FF9B8F','#DBFF74','#7CF0DD','#FFD98A','#B39DFF','#8AF0A8','#F0A8D9','#C9E07B','#7CD9F0','#F0C27C','#9BFFB0','#E0A6F0','#FFB6C9','#A8E07C'],
-              income:  ['#8AF0A8','#DBFF74','#7CF0DD','#C9E07B','#B39DFF','#FFD98A','#9BFFB0','#7CD9F0','#F0C27C','#F0A8D9'] },
   };
   function currentThemeId(){
     return document.documentElement.getAttribute('data-theme') || 'night';
@@ -2524,10 +2541,8 @@
     <div class="theme-sheet-grid" id="themeGrid">
       <button type="button" class="theme-swatch" data-theme-id="night">Ночь</button>
       <button type="button" class="theme-swatch" data-theme-id="day">День</button>
-      <button type="button" class="theme-swatch" data-theme-id="sunset">Закат</button>
       <button type="button" class="theme-swatch" data-theme-id="ocean">Океан</button>
       <button type="button" class="theme-swatch" data-theme-id="violet">Аметист</button>
-      <button type="button" class="theme-swatch" data-theme-id="forest">Лес</button>
     </div>
     <div class="sheet-actions">
       <button class="btn-ghost" id="themeCloseBtn" style="margin-left:auto;" data-i18n="catMgrDone">Готово</button>
@@ -2545,7 +2560,7 @@
 <script>
 (function(){
   "use strict";
-  const THEMES = ['night','day','sunset','ocean','violet','forest'];
+  const THEMES = ['night','day','ocean','violet'];
   const root = document.documentElement;
   const fab = document.getElementById('themeFab');
   const overlay = document.getElementById('themeSheetOverlay');
@@ -2555,6 +2570,10 @@
 
   function applyTheme(id, opts){
     opts = opts || {};
+    // Guards against legacy 'sunset'/'forest' values still sitting in
+    // localStorage or a user's Firestore doc from before those themes
+    // were retired — falls back to night instead of applying a dead id.
+    if(!THEMES.includes(id)) id = 'night';
     if(id === 'night'){ root.removeAttribute('data-theme'); }
     else{ root.setAttribute('data-theme', id); }
     try{ localStorage.setItem('lenta_theme', id); }catch(e){}
