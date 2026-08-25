@@ -1065,27 +1065,43 @@
 
   async function ensureUserDocExists(uid){
     const ref = userDocRef(uid);
-    const snap = await getDoc(ref);
-    if(snap.exists()){
-      const d = snap.data();
-      window.dbgLog && window.dbgLog('DOC CHECK: existing settings doc FOUND for uid=' + uid + '. periods=' + JSON.stringify(d.periods||[]));
-      await migrateLegacyArraysIfNeeded(uid, d);
-    }else{
-      window.dbgLog && window.dbgLog('DOC CHECK: NO settings doc for uid=' + uid + ' -> creating a brand-new one now');
-      // Default first period: the current calendar month. From here on the
-      // user owns the boundaries — this is just a sane starting point.
-      const now = new Date();
-      const pad = (n)=> String(n).padStart(2,'0');
-      const isoLocal = (dt)=> `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
-      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastOfMonth = new Date(now.getFullYear(), now.getMonth()+1, 0);
-      await setDoc(ref, {
-        customCats: {expense:[], income:[]}, categoryOverrides: {},
-        categoryHidden: [], customCurrencies: [],
-        displayCurrency: 'BYN', periods: [{ start: isoLocal(firstOfMonth), end: isoLocal(lastOfMonth) }],
-        lang: 'ru', theme: 'night',
-        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-      });
+    try{
+      const snap = await getDoc(ref);
+      if(snap.exists()){
+        const d = snap.data();
+        window.dbgLog && window.dbgLog('DOC CHECK: existing settings doc FOUND for uid=' + uid + '. periods=' + JSON.stringify(d.periods||[]));
+        await migrateLegacyArraysIfNeeded(uid, d);
+      }else{
+        window.dbgLog && window.dbgLog('DOC CHECK: NO settings doc for uid=' + uid + ' -> creating a brand-new one now');
+        // Default first period: the current calendar month. From here on the
+        // user owns the boundaries — this is just a sane starting point.
+        const now = new Date();
+        const pad = (n)=> String(n).padStart(2,'0');
+        const isoLocal = (dt)=> `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastOfMonth = new Date(now.getFullYear(), now.getMonth()+1, 0);
+        await setDoc(ref, {
+          customCats: {expense:[], income:[]}, categoryOverrides: {},
+          categoryHidden: [], customCurrencies: [],
+          displayCurrency: 'BYN', periods: [{ start: isoLocal(firstOfMonth), end: isoLocal(lastOfMonth) }],
+          lang: 'ru', theme: 'night',
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+        });
+      }
+    }catch(e){
+      // A transient failure here (offline the instant someone signs in, a
+      // hiccup mid-migration, etc.) must never leave the app stuck on a
+      // half-loaded screen with the realtime listeners never attached —
+      // that's its own silent, confusing kind of data loss. Log it clearly,
+      // surface the error badge, and let the caller proceed to attach the
+      // listeners regardless; they pick up whatever exists once the
+      // connection is stable. A partially-failed migration is also safe to
+      // simply retry on the next sign-in — it writes each legacy record
+      // under its own pre-existing id, so re-running it never duplicates
+      // anything.
+      window.dbgLog && window.dbgLog('ensureUserDocExists ERROR (non-fatal, continuing): ' + (e.code || e.message));
+      console.error('ensureUserDocExists error', e);
+      setSyncBadge('error');
     }
   }
 
