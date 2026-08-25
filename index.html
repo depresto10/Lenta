@@ -842,7 +842,8 @@
     signOut, setPersistence, browserLocalPersistence
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp
+    getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
+    onSnapshot, serverTimestamp, writeBatch, deleteField
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -859,32 +860,41 @@
   const db = getFirestore(fbApp);
 
   let currentUser = null;
-  let unsubscribeSnapshot = null;
-  let suppressNextSnapshot = false;
-  let onRemoteState = null;
+  let unsubscribeSettings = null;
+  let unsubscribeEntries = null;
+  let unsubscribeSavings = null;
   let onAuthReady = null;
-  // If a Firestore snapshot arrives before the main app script has finished
-  // loading and called setOnRemoteState(), the data used to be silently
-  // dropped (onRemoteState was still null) while the sync badge still
-  // reported "synced" — leaving the UI stuck empty until the next remote
-  // change. We stash that first snapshot here and replay it the moment a
-  // handler is registered.
-  let pendingRemoteState = null;
 
-  function userDocRef(uid){ return doc(db, 'users', uid, 'lenta', 'data'); }
-
-  async function pushState(partialState){
-    if(!currentUser) return;
-    try{
-      setSyncBadge('syncing');
-      suppressNextSnapshot = true;
-      await setDoc(userDocRef(currentUser.uid), { ...partialState, updatedAt: serverTimestamp() }, { merge: true });
-      setSyncBadge('synced');
-    }catch(e){
-      console.error('Firestore write error', e);
-      setSyncBadge('error');
-    }
+  // --- Generic "replay-when-ready" channel -----------------------------
+  // The classic <script> that owns the app's data model runs after this
+  // module script (module scripts are always deferred), so a handler
+  // registered via setOnX() might not exist yet the instant the first
+  // Firestore snapshot arrives. Each channel below buffers whatever fires
+  // before a handler is registered and replays it the moment one shows up,
+  // so nothing is ever silently dropped on first load.
+  function makeChannel(){
+    let handler = null;
+    const pending = [];
+    return {
+      emit(payload){ if(handler) handler(payload); else pending.push(payload); },
+      setHandler(fn){ handler = fn; while(pending.length) fn(pending.shift()); }
+    };
   }
+  const settingsChannel = makeChannel();
+  const entriesChannel = makeChannel();
+  const savingsChannel = makeChannel();
+
+  // --- Firestore paths ---------------------------------------------------
+  // Settings (small, bounded: categories, periods, prefs) stay as a single
+  // document — safe to merge wholesale, low blast radius if ever stale.
+  // Ledger data (entries, savings) is UNBOUNDED and is exactly what a stale
+  // tab wiped out before: it now lives as ONE FIRESTORE DOCUMENT PER RECORD
+  // in a subcollection, so a write can only ever touch the single record it
+  // targets — there is no operation left in this app that can overwrite or
+  // erase someone's whole transaction history in one shot.
+  function userDocRef(uid){ return doc(db, 'users', uid, 'lenta', 'data'); }
+  function entriesCol(uid){ return collection(db, 'users', uid, 'lenta', 'data', 'entries'); }
+  function savingsCol(uid){ return collection(db, 'users', uid, 'lenta', 'data', 'savings'); }
 
   function setSyncBadge(status){
     const badge = document.getElementById('syncBadge');
@@ -895,20 +905,136 @@
     text.textContent = labels[status] || status;
   }
 
-  function watchUserDoc(uid){
-    if(unsubscribeSnapshot) unsubscribeSnapshot();
-    unsubscribeSnapshot = onSnapshot(userDocRef(uid), (snap)=>{
-      window.dbgLog('SNAPSHOT fired: exists=' + snap.exists() + (snap.exists() ? (' entries=' + ((snap.data().entries||[]).length) + ' periods=' + JSON.stringify(snap.data().periods||[])) : '') + ' suppressNext=' + suppressNextSnapshot);
-      if(suppressNextSnapshot){ suppressNextSnapshot = false; window.dbgLog('SNAPSHOT suppressed (echo of our own write)'); return; }
-      if(snap.exists()){
-        if(onRemoteState){ window.dbgLog('SNAPSHOT: onRemoteState handler is ready -> calling it now'); onRemoteState(snap.data()); }
-        else{ window.dbgLog('SNAPSHOT: onRemoteState NOT ready yet -> stashing as pendingRemoteState'); pendingRemoteState = snap.data(); }
-      }
+  async function pushState(partialState){
+    if(!currentUser) return;
+    try{
+      setSyncBadge('syncing');
+      await setDoc(userDocRef(currentUser.uid), { ...partialState, updatedAt: serverTimestamp() }, { merge: true });
+      setSyncBadge('synced');
+    }catch(e){
+      window.dbgLog && window.dbgLog('SETTINGS write error: ' + e.code + ' ' + e.message);
+      console.error('Firestore settings write error', e);
+      setSyncBadge('error');
+    }
+  }
+
+  // --- Single-record ledger writes ---------------------------------------
+  // Each of these touches exactly one document. There is deliberately no
+  // "write the whole array" path anymore for entries/savings.
+  async function upsertEntry(entry){
+    if(!currentUser) return;
+    const { id, ...rest } = entry;
+    try{ setSyncBadge('syncing'); await setDoc(doc(entriesCol(currentUser.uid), id), rest); setSyncBadge('synced'); }
+    catch(e){ window.dbgLog && window.dbgLog('ENTRY upsert error: ' + e.code); console.error('Firestore entry write error', e); setSyncBadge('error'); }
+  }
+  async function deleteEntryDoc(id){
+    if(!currentUser) return;
+    try{ setSyncBadge('syncing'); await deleteDoc(doc(entriesCol(currentUser.uid), id)); setSyncBadge('synced'); }
+    catch(e){ window.dbgLog && window.dbgLog('ENTRY delete error: ' + e.code); console.error('Firestore entry delete error', e); setSyncBadge('error'); }
+  }
+  async function upsertSaving(entry){
+    if(!currentUser) return;
+    const { id, ...rest } = entry;
+    try{ setSyncBadge('syncing'); await setDoc(doc(savingsCol(currentUser.uid), id), rest); setSyncBadge('synced'); }
+    catch(e){ window.dbgLog && window.dbgLog('SAVING upsert error: ' + e.code); console.error('Firestore saving write error', e); setSyncBadge('error'); }
+  }
+  async function deleteSavingDoc(id){
+    if(!currentUser) return;
+    try{ setSyncBadge('syncing'); await deleteDoc(doc(savingsCol(currentUser.uid), id)); setSyncBadge('synced'); }
+    catch(e){ window.dbgLog && window.dbgLog('SAVING delete error: ' + e.code); console.error('Firestore saving delete error', e); setSyncBadge('error'); }
+  }
+
+  // --- Deliberate full-collection replace (import / reset only) ---------
+  // Used ONLY for explicit, user-initiated "restore from backup" and
+  // "erase everything" actions — never from a background sync path, and
+  // never as a side effect of an ordinary add/edit/delete.
+  async function replaceCollection(colRef, items){
+    const existing = await getDocs(colRef);
+    let batch = writeBatch(db), ops = 0;
+    const maybeFlush = async ()=>{ if(ops >= 450){ await batch.commit(); batch = writeBatch(db); ops = 0; } };
+    for(const d of existing.docs){ batch.delete(d.ref); ops++; await maybeFlush(); }
+    for(const item of items){
+      const { id, ...rest } = item;
+      if(!id) continue;
+      batch.set(doc(colRef, id), rest); ops++; await maybeFlush();
+    }
+    if(ops > 0) await batch.commit();
+  }
+  async function restoreEntries(items){
+    if(!currentUser) return;
+    try{ setSyncBadge('syncing'); await replaceCollection(entriesCol(currentUser.uid), items); setSyncBadge('synced'); }
+    catch(e){ window.dbgLog && window.dbgLog('restoreEntries error: ' + e.code); console.error('restoreEntries error', e); setSyncBadge('error'); }
+  }
+  async function restoreSavings(items){
+    if(!currentUser) return;
+    try{ setSyncBadge('syncing'); await replaceCollection(savingsCol(currentUser.uid), items); setSyncBadge('synced'); }
+    catch(e){ window.dbgLog && window.dbgLog('restoreSavings error: ' + e.code); console.error('restoreSavings error', e); setSyncBadge('error'); }
+  }
+
+  // --- One-time migration for accounts still on the old schema ----------
+  // Older docs may still have entries/savingsEntries embedded as arrays on
+  // the settings doc itself. Fold them into the new subcollections once,
+  // then remove the legacy fields so nothing is read from two places.
+  async function migrateLegacyArraysIfNeeded(uid, docData){
+    const legacyEntries = Array.isArray(docData.entries) ? docData.entries : [];
+    const legacySavings = Array.isArray(docData.savingsEntries) ? docData.savingsEntries : [];
+    if(!legacyEntries.length && !legacySavings.length) return;
+    window.dbgLog && window.dbgLog('MIGRATION: legacy entries=' + legacyEntries.length + ' legacySavings=' + legacySavings.length + ' -> moving into subcollections');
+    let batch = writeBatch(db), ops = 0;
+    const maybeFlush = async ()=>{ if(ops >= 450){ await batch.commit(); batch = writeBatch(db); ops = 0; } };
+    for(const item of legacyEntries){
+      const { id, ...rest } = item;
+      if(!id) continue;
+      batch.set(doc(entriesCol(uid), id), rest); ops++; await maybeFlush();
+    }
+    for(const item of legacySavings){
+      const { id, ...rest } = item;
+      if(!id) continue;
+      batch.set(doc(savingsCol(uid), id), rest); ops++; await maybeFlush();
+    }
+    batch.update(userDocRef(uid), { entries: deleteField(), savingsEntries: deleteField() }); ops++;
+    await batch.commit();
+    window.dbgLog && window.dbgLog('MIGRATION: done');
+  }
+
+  function watchSettings(uid){
+    if(unsubscribeSettings) unsubscribeSettings();
+    unsubscribeSettings = onSnapshot(userDocRef(uid), (snap)=>{
+      window.dbgLog && window.dbgLog('SETTINGS snapshot: exists=' + snap.exists() + (snap.exists() ? (' periods=' + JSON.stringify(snap.data().periods||[])) : ''));
+      if(snap.exists()) settingsChannel.emit(snap.data());
       setSyncBadge('synced');
     }, (err)=>{
-      window.dbgLog('SNAPSHOT ERROR: ' + err.code + ' ' + err.message);
-      console.error('Firestore snapshot error', err);
+      window.dbgLog && window.dbgLog('SETTINGS snapshot ERROR: ' + err.code);
+      console.error('Firestore settings snapshot error', err);
       setSyncBadge('error');
+    });
+  }
+  function watchEntries(uid){
+    if(unsubscribeEntries) unsubscribeEntries();
+    unsubscribeEntries = onSnapshot(entriesCol(uid), (snap)=>{
+      const changes = snap.docChanges().map(ch=>({
+        type: ch.type, id: ch.doc.id,
+        data: ch.type === 'removed' ? null : { id: ch.doc.id, ...ch.doc.data() }
+      }));
+      window.dbgLog && window.dbgLog('ENTRIES snapshot: ' + changes.length + ' change(s), total docs=' + snap.size);
+      entriesChannel.emit(changes);
+    }, (err)=>{
+      window.dbgLog && window.dbgLog('ENTRIES snapshot ERROR: ' + err.code);
+      console.error('Firestore entries snapshot error', err);
+    });
+  }
+  function watchSavings(uid){
+    if(unsubscribeSavings) unsubscribeSavings();
+    unsubscribeSavings = onSnapshot(savingsCol(uid), (snap)=>{
+      const changes = snap.docChanges().map(ch=>({
+        type: ch.type, id: ch.doc.id,
+        data: ch.type === 'removed' ? null : { id: ch.doc.id, ...ch.doc.data() }
+      }));
+      window.dbgLog && window.dbgLog('SAVINGS snapshot: ' + changes.length + ' change(s), total docs=' + snap.size);
+      savingsChannel.emit(changes);
+    }, (err)=>{
+      window.dbgLog && window.dbgLog('SAVINGS snapshot ERROR: ' + err.code);
+      console.error('Firestore savings snapshot error', err);
     });
   }
 
@@ -917,10 +1043,10 @@
     const snap = await getDoc(ref);
     if(snap.exists()){
       const d = snap.data();
-      window.dbgLog('DOC CHECK: existing doc FOUND for uid=' + uid + '. entries=' + ((d.entries||[]).length) + ' periods=' + JSON.stringify(d.periods||[]));
-    }
-    if(!snap.exists()){
-      window.dbgLog('DOC CHECK: NO doc for uid=' + uid + ' -> creating a brand-new EMPTY doc right now');
+      window.dbgLog && window.dbgLog('DOC CHECK: existing settings doc FOUND for uid=' + uid + '. periods=' + JSON.stringify(d.periods||[]));
+      await migrateLegacyArraysIfNeeded(uid, d);
+    }else{
+      window.dbgLog && window.dbgLog('DOC CHECK: NO settings doc for uid=' + uid + ' -> creating a brand-new one now');
       // Default first period: the current calendar month. From here on the
       // user owns the boundaries — this is just a sane starting point.
       const now = new Date();
@@ -929,8 +1055,8 @@
       const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const lastOfMonth = new Date(now.getFullYear(), now.getMonth()+1, 0);
       await setDoc(ref, {
-        entries: [], customCats: {expense:[], income:[]}, categoryOverrides: {},
-        categoryHidden: [], savingsEntries: [], customCurrencies: [],
+        customCats: {expense:[], income:[]}, categoryOverrides: {},
+        categoryHidden: [], customCurrencies: [],
         displayCurrency: 'BYN', periods: [{ start: isoLocal(firstOfMonth), end: isoLocal(lastOfMonth) }],
         lang: 'ru', theme: 'night',
         createdAt: serverTimestamp(), updatedAt: serverTimestamp()
@@ -944,19 +1070,23 @@
     document.getElementById('authLoading').style.display = 'none';
     if(user){
       currentUser = user;
-      window.dbgLog('AUTH: signed in. uid=' + user.uid + ' email=' + (user.email || '(no email)') + ' provider=' + (user.providerData.map(p=>p.providerId).join(',')||'?'));
+      window.dbgLog && window.dbgLog('AUTH: signed in. uid=' + user.uid + ' email=' + (user.email || '(no email)') + ' provider=' + (user.providerData.map(p=>p.providerId).join(',')||'?'));
       document.getElementById('authScreen').style.display = 'none';
       document.getElementById('mainApp').style.display = '';
       const emailEl = document.getElementById('accountEmail');
       if(emailEl) emailEl.textContent = user.email || 'без email';
       setSyncBadge('syncing');
       await ensureUserDocExists(user.uid);
-      watchUserDoc(user.uid);
+      watchSettings(user.uid);
+      watchEntries(user.uid);
+      watchSavings(user.uid);
       if(onAuthReady) onAuthReady(user);
     }else{
       currentUser = null;
-      window.dbgLog('AUTH: signed out / no user');
-      if(unsubscribeSnapshot){ unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+      window.dbgLog && window.dbgLog('AUTH: signed out / no user');
+      if(unsubscribeSettings){ unsubscribeSettings(); unsubscribeSettings = null; }
+      if(unsubscribeEntries){ unsubscribeEntries(); unsubscribeEntries = null; }
+      if(unsubscribeSavings){ unsubscribeSavings(); unsubscribeSavings = null; }
       document.getElementById('mainApp').style.display = 'none';
       document.getElementById('authScreen').style.display = 'flex';
     }
@@ -1028,12 +1158,13 @@
 
   window.LentaCloud = {
     pushState,
+    upsertEntry, deleteEntry: deleteEntryDoc,
+    upsertSaving, deleteSaving: deleteSavingDoc,
+    restoreEntries, restoreSavings,
     signOut: ()=> signOut(auth),
-    setOnRemoteState(fn){
-      onRemoteState = fn;
-      window.dbgLog('setOnRemoteState: handler registered. pending=' + (pendingRemoteState ? 'YES replaying stashed snapshot now' : 'none'));
-      if(pendingRemoteState){ fn(pendingRemoteState); pendingRemoteState = null; }
-    },
+    setOnRemoteState(fn){ settingsChannel.setHandler(fn); },
+    setOnEntriesChange(fn){ entriesChannel.setHandler(fn); },
+    setOnSavingsChange(fn){ savingsChannel.setHandler(fn); },
     setOnAuthReady(fn){ onAuthReady = fn; },
     get currentUser(){ return currentUser; },
     setSyncBadge,
@@ -1212,6 +1343,11 @@
   function DOW_SHORT(){ return DOW_SHORT_BY_LANG[currentLang] || DOW_SHORT_BY_LANG.ru; }
   function DOW_FULL(){ return DOW_FULL_BY_LANG[currentLang] || DOW_FULL_BY_LANG.ru; }
   let savingsEntries = [];
+  // Mirrors the `savings` Firestore subcollection 1:1 (id -> record). The
+  // `savingsEntries` array is rebuilt from this map on every change and is
+  // what the rest of the app reads/filters — the map only exists so we can
+  // apply add/modify/remove deltas without re-fetching everything.
+  let savingsMap = new Map();
   let savingsSheetType = 'in';
   let savingsCurrency = 'BYN';
   let savingsForm = 'cash';
@@ -1247,6 +1383,9 @@
   }
 
   let entries = [];
+  // Mirrors the `entries` Firestore subcollection 1:1 (id -> record). See
+  // savingsMap above for why this exists alongside the plain array.
+  let entriesMap = new Map();
   let selectedDate = new Date();
   let sheetType = 'expense';
   let sheetCatKey = null;
@@ -1355,18 +1494,23 @@
   function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
   function genCode(name){ const letters = name.trim().toUpperCase().replace(/[^А-ЯЁA-Z]/g,''); return (letters.slice(0,3) || 'НОВ'); }
 
-  /* Debounced cloud writes. IMPORTANT: iOS Safari freezes pending setTimeout
-     callbacks the instant a tab is backgrounded, and a full swipe-to-close
-     kills the page before a frozen timer ever gets to run — so a write that's
-     still "waiting out" the debounce at that moment is silently lost even
-     though the UI already looks saved. To guard against that we also flush
-     immediately on visibilitychange/pagehide (see below), and skip the
-     debounce entirely for big one-shot actions like import/reset. */
+  /* Debounced cloud writes — SETTINGS ONLY (categories, periods, prefs).
+     IMPORTANT: iOS Safari freezes pending setTimeout callbacks the instant a
+     tab is backgrounded, and a full swipe-to-close kills the page before a
+     frozen timer ever gets to run — so a write that's still "waiting out"
+     the debounce at that moment is silently lost even though the UI already
+     looks saved. To guard against that we also flush immediately on
+     visibilitychange/pagehide (see below).
+     Ledger data (entries/savings) is NOT part of this payload and is never
+     debounced or "flushed as a whole" — each add/edit/delete writes its own
+     single Firestore document immediately (see persistEntries/persistSavings
+     below), so there is no batched, staleness-prone write left for the part
+     of the data that actually matters most to lose. */
   let pushTimer = null;
   function buildStatePayload(){
     return {
-      entries, customCats, categoryOverrides, categoryHidden,
-      savingsEntries, customCurrencies, displayCurrency,
+      customCats, categoryOverrides, categoryHidden,
+      customCurrencies, displayCurrency,
       periods, lang: currentLang, theme: (localStorage.getItem('lenta_theme') || 'night')
     };
   }
@@ -1393,14 +1537,15 @@
   });
   window.addEventListener('pagehide', flushPendingPush);
 
+  // Settings doc (categories/periods/prefs) — small and bounded, still
+  // merged wholesale, but that's safe here: the worst a stale write can do
+  // is clobber a category rename or a period edit, never a transaction.
   function applyRemoteState(data){
-    if(window.dbgLog) window.dbgLog('applyRemoteState CALLED: incoming entries=' + (data.entries ? data.entries.length : 'undefined/missing') + ' incoming periods=' + JSON.stringify(data.periods||'undefined'));
-    if(data.entries) entries = data.entries;
+    if(window.dbgLog) window.dbgLog('SETTINGS applied: periods=' + JSON.stringify(data.periods||'undefined'));
     if(data.customCats) customCats = data.customCats;
     if(data.categoryOverrides) categoryOverrides = data.categoryOverrides;
     if(data.categoryHidden) categoryHidden = data.categoryHidden;
     rebuildCats();
-    if(data.savingsEntries) savingsEntries = data.savingsEntries;
     if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
     if(data.displayCurrency) displayCurrency = data.displayCurrency;
     if(Array.isArray(data.periods) && data.periods.length){
@@ -1416,8 +1561,32 @@
     }
     if(data.lang && I18N[data.lang]){ currentLang = data.lang; applyI18n(); document.querySelectorAll('#langToggle button').forEach(b=> b.classList.toggle('active', b.dataset.lang===currentLang)); }
     if(data.theme && window.__applyLentaTheme) window.__applyLentaTheme(data.theme);
-    if(window.dbgLog) window.dbgLog('applyRemoteState DONE: entries in memory now=' + entries.length + ' periods in memory=' + JSON.stringify(periods));
     renderPeriodEditor();
+    renderAll();
+  }
+
+  // Ledger subcollections — applied as incremental add/modify/remove deltas
+  // against a Map, never as a full-array replace. This is the structural
+  // fix: there is no code path anywhere that can take "what one stale tab
+  // happens to have in memory" and use it to overwrite everyone's history,
+  // because a snapshot here only ever describes the specific document(s)
+  // that actually changed.
+  function applyEntriesChanges(changes){
+    changes.forEach(ch=>{
+      if(ch.type === 'removed') entriesMap.delete(ch.id);
+      else entriesMap.set(ch.id, ch.data);
+    });
+    entries = Array.from(entriesMap.values());
+    if(window.dbgLog) window.dbgLog('entries applied: +/-' + changes.length + ' change(s), total in memory=' + entries.length);
+    renderAll();
+  }
+  function applySavingsChanges(changes){
+    changes.forEach(ch=>{
+      if(ch.type === 'removed') savingsMap.delete(ch.id);
+      else savingsMap.set(ch.id, ch.data);
+    });
+    savingsEntries = Array.from(savingsMap.values());
+    if(window.dbgLog) window.dbgLog('savings applied: +/-' + changes.length + ' change(s), total in memory=' + savingsEntries.length);
     renderAll();
   }
 
@@ -1433,15 +1602,23 @@
     if(window.LentaCloud){
       if(window.dbgLog) window.dbgLog('registerWithLentaCloud: window.LentaCloud found, wiring up handlers');
       window.LentaCloud.setOnRemoteState(applyRemoteState);
+      window.LentaCloud.setOnEntriesChange(applyEntriesChanges);
+      window.LentaCloud.setOnSavingsChange(applySavingsChanges);
       window.LentaCloud.setOnAuthReady(()=>{ fetchFxRates(); });
     }else{
       setTimeout(registerWithLentaCloud, 20);
     }
   })();
 
-  function persistEntries(){ schedulePush(); }
+  // Ledger writes are per-record and immediate — no debounce, no "whole
+  // state" payload. A stale reference to an old `entry` object can at most
+  // rewrite that ONE record back to its old values; it can never wipe out
+  // records it never even mutated.
+  function persistEntries(entry){ if(window.LentaCloud) window.LentaCloud.upsertEntry(entry); }
+  function persistEntryDelete(id){ if(window.LentaCloud) window.LentaCloud.deleteEntry(id); }
+  function persistSavings(entry){ if(window.LentaCloud) window.LentaCloud.upsertSaving(entry); }
+  function persistSavingDelete(id){ if(window.LentaCloud) window.LentaCloud.deleteSaving(id); }
   function persistCustomCats(){ schedulePush(); }
-  function persistSavings(){ schedulePush(); }
   function persistCustomCurrencies(){ schedulePush(); }
   function persistCatOverrides(){ schedulePush(); }
   function persistCatHidden(){ schedulePush(); }
@@ -1587,9 +1764,13 @@
     rowEl.classList.add('voiding');
     setTimeout(()=>{
       entries = entries.filter(e=>e.id!==id);
-      persistEntries();
-      const linkedRemoved = savingsEntries.some(s=>s.linkedEntryId===id);
-      if(linkedRemoved){ savingsEntries = savingsEntries.filter(s=>s.linkedEntryId!==id); persistSavings(); }
+      entriesMap.delete(id);
+      persistEntryDelete(id);
+      const linked = savingsEntries.filter(s=>s.linkedEntryId===id);
+      if(linked.length){
+        savingsEntries = savingsEntries.filter(s=>s.linkedEntryId!==id);
+        linked.forEach(s=>{ savingsMap.delete(s.id); persistSavingDelete(s.id); });
+      }
       renderAll();
     }, 320);
   }
@@ -1765,7 +1946,12 @@
 
   function removeSavingsEntry(id, rowEl){
     rowEl.classList.add('voiding');
-    setTimeout(()=>{ savingsEntries = savingsEntries.filter(e=>e.id!==id); persistSavings(); renderSavingsGrid(); renderSavingsHistory(); }, 320);
+    setTimeout(()=>{
+      savingsEntries = savingsEntries.filter(e=>e.id!==id);
+      savingsMap.delete(id);
+      persistSavingDelete(id);
+      renderSavingsGrid(); renderSavingsHistory();
+    }, 320);
   }
 
   const overlay = document.getElementById('sheetOverlay');
@@ -1841,20 +2027,24 @@
     const v = parseFloat((amountInput.value||'').replace(',', '.'));
     if(!(v>0)) return;
     const entryId = 'e' + Date.now() + Math.random().toString(36).slice(2,7);
-    entries.push({
+    const newEntry = {
       id: entryId,
       date: iso(selectedDate), type: sheetType, catKey: sheetCatKey,
       amount: v, note: noteInput.value.trim(), ts: Date.now()
-    });
-    persistEntries();
+    };
+    entries.push(newEntry);
+    entriesMap.set(entryId, newEntry);
+    persistEntries(newEntry);
     if(sheetType==='expense' && sheetCatKey==='savings'){
-      savingsEntries.push({
+      const newSaving = {
         id: 's' + Date.now() + Math.random().toString(36).slice(2,7),
         date: iso(selectedDate), type: 'in', currency: 'BYN', form: 'noncash',
         amount: v, note: 'из ленты' + (noteInput.value.trim() ? ': '+noteInput.value.trim() : ''),
         ts: Date.now(), linkedEntryId: entryId
-      });
-      persistSavings();
+      };
+      savingsEntries.push(newSaving);
+      savingsMap.set(newSaving.id, newSaving);
+      persistSavings(newSaving);
     }
     closeSheet();
     renderAll();
@@ -1951,12 +2141,14 @@
   savingsSaveBtn.addEventListener('click', ()=>{
     const v = parseFloat((savingsAmountInput.value||'').replace(',', '.'));
     if(!(v>0)) return;
-    savingsEntries.push({
+    const newSaving = {
       id: 's' + Date.now() + Math.random().toString(36).slice(2,7),
       date: iso(selectedDate), type: savingsSheetType, currency: savingsCurrency, form: savingsForm,
       amount: v, note: savingsNoteInput.value.trim(), ts: Date.now()
-    });
-    persistSavings();
+    };
+    savingsEntries.push(newSaving);
+    savingsMap.set(newSaving.id, newSaving);
+    persistSavings(newSaving);
     closeSavingsSheet();
     renderSavingsGrid();
     renderSavingsHistory();
@@ -2100,7 +2292,12 @@
     function onDocClick(ev){ if(!pop.contains(ev.target) && ev.target !== anchorBtn) close(); }
     function onKey(ev){ if(ev.key === 'Escape') close(); }
     function pick(dateIso){
-      if(dateIso !== entry.date){ entry.date = dateIso; persistEntries(); renderAll(); }
+      if(dateIso !== entry.date){
+        entry.date = dateIso;
+        entriesMap.set(entry.id, entry);
+        persistEntries(entry);
+        renderAll();
+      }
       close();
     }
 
@@ -2173,9 +2370,22 @@
     reader.onload = ()=>{
       try{
         const data = JSON.parse(reader.result);
-        if(Array.isArray(data.entries)) entries = data.entries;
+        // Restoring a backup file is a big, deliberate, explicit one-shot
+        // action the person just chose from a file picker — not a background
+        // sync — so a full replace of the ledger subcollections here is
+        // intentional and safe, unlike the automatic writes elsewhere in the
+        // app which now only ever touch one record at a time.
+        if(Array.isArray(data.entries)){
+          entries = data.entries;
+          entriesMap = new Map(entries.map(e=>[e.id, e]));
+          if(window.LentaCloud) window.LentaCloud.restoreEntries(entries);
+        }
         if(data.customCats){ customCats = data.customCats; rebuildCats(); }
-        if(Array.isArray(data.savingsEntries)) savingsEntries = data.savingsEntries;
+        if(Array.isArray(data.savingsEntries)){
+          savingsEntries = data.savingsEntries;
+          savingsMap = new Map(savingsEntries.map(e=>[e.id, e]));
+          if(window.LentaCloud) window.LentaCloud.restoreSavings(savingsEntries);
+        }
         if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
         if(Array.isArray(data.periods) && data.periods.length){
           periods = data.periods.slice();
@@ -2186,9 +2396,9 @@
           periods = [legacyPeriodRangeFromStartDay(data.periodStartDay, new Date())];
           renderPeriodEditor();
         }
-        // A restore is a big, deliberate one-shot action — push straight to
-        // Firestore instead of scheduling a debounced write, so the data is
-        // safely in the cloud even if the tab gets closed a second later.
+        // Settings (categories/periods/prefs) still go through the small
+        // debounced settings doc — push immediately rather than waiting out
+        // the debounce, same reasoning as above.
         pushNow();
         renderAll();
       }catch(err){ alert('Не получилось прочитать файл резервной копии'); }
@@ -2485,12 +2695,18 @@
   });
   document.getElementById('drawerResetBtn').addEventListener('click', ()=>{
     if(!confirm(t('confirmReset'))) return;
-    entries = []; customCats = {expense:[], income:[]}; categoryOverrides = {}; categoryHidden = [];
-    savingsEntries = []; customCurrencies = []; CURRENCIES = [...DEFAULT_CURRENCIES];
+    entries = []; entriesMap = new Map();
+    customCats = {expense:[], income:[]}; categoryOverrides = {}; categoryHidden = [];
+    savingsEntries = []; savingsMap = new Map();
+    customCurrencies = []; CURRENCIES = [...DEFAULT_CURRENCIES];
     displayCurrency = 'BYN';
     { const now = new Date(); periods = [{ start: iso(new Date(now.getFullYear(), now.getMonth(), 1)), end: iso(new Date(now.getFullYear(), now.getMonth()+1, 0)) }]; }
     rebuildCats();
-    pushNow(); // one-shot action, don't leave it to the debounce
+    // Explicit, deliberate, user-confirmed wipe — the one and only place a
+    // full-collection clear is intentional rather than an accidental
+    // background side effect.
+    if(window.LentaCloud){ window.LentaCloud.restoreEntries([]); window.LentaCloud.restoreSavings([]); }
+    pushNow(); // settings doc — one-shot action, don't leave it to the debounce
     ['lenta_fxRates','lenta_fxRatesTs','lenta_theme'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
     renderAll();
   });
