@@ -560,37 +560,6 @@
 </head>
 <body>
 
-<div id="lentaDebugBar" style="position:fixed;bottom:0;left:0;right:0;z-index:999999;font-family:monospace;">
-  <button id="lentaDebugToggle" type="button" style="display:block;width:100%;box-sizing:border-box;text-align:left;background:#111;color:#5cff5c;border:none;border-top:2px solid #5cff5c;font-family:monospace;font-size:11px;padding:6px 10px;cursor:pointer;">▲ debug log — tap to open</button>
-  <div id="lentaDebugPanel" style="display:none;max-height:38vh;overflow-y:auto;background:rgba(0,0,0,.96);color:#5cff5c;font-size:10.5px;line-height:1.6;padding:8px 10px;white-space:pre-wrap;-webkit-user-select:text;user-select:text;"></div>
-</div>
-<script>
-  window.__lentaDbg = [];
-  window.dbgLog = function(msg){
-    var ts = new Date().toISOString().split('T')[1].split('.')[0];
-    var line = '[' + ts + '] ' + msg;
-    window.__lentaDbg.push(line);
-    var panel = document.getElementById('lentaDebugPanel');
-    if(panel){ panel.textContent = window.__lentaDbg.join('\n'); panel.scrollTop = panel.scrollHeight; }
-    var toggle = document.getElementById('lentaDebugToggle');
-    if(toggle && toggle.dataset.open !== '1'){ toggle.textContent = '▲ debug log (' + window.__lentaDbg.length + ') — tap to open'; }
-    try{ console.log(line); }catch(e){}
-  };
-  (function(){
-    var toggle = document.getElementById('lentaDebugToggle');
-    var panel = document.getElementById('lentaDebugPanel');
-    toggle.addEventListener('click', function(){
-      var isOpen = toggle.dataset.open === '1';
-      toggle.dataset.open = isOpen ? '0' : '1';
-      panel.style.display = isOpen ? 'none' : 'block';
-      toggle.textContent = isOpen
-        ? ('▲ debug log (' + window.__lentaDbg.length + ') — tap to open')
-        : '▼ debug log — tap to close';
-    });
-  })();
-  window.dbgLog('--- debug panel initialized ---');
-</script>
-
 <div class="auth-loading" id="authLoading">
   <img class="auth-mascot auth-mascot-mobile" src="mascot-right.png" alt="" aria-hidden="true" />
   <img class="auth-mascot auth-mascot-desktop" src="mascot.png" alt="" aria-hidden="true" />
@@ -978,7 +947,6 @@
       await fn();
       setSyncBadge('synced');
     }catch(e){
-      window.dbgLog && window.dbgLog(label + ' error: ' + (e.code || e.message));
       console.error(label + ' error', e);
       setSyncBadge('error');
     }
@@ -1052,7 +1020,6 @@
     const legacyEntries = Array.isArray(docData.entries) ? docData.entries : [];
     const legacySavings = Array.isArray(docData.savingsEntries) ? docData.savingsEntries : [];
     if(!legacyEntries.length && !legacySavings.length) return;
-    window.dbgLog && window.dbgLog('MIGRATION: legacy entries=' + legacyEntries.length + ' legacySavings=' + legacySavings.length + ' -> moving into subcollections');
     const writer = makeBatchWriter();
     for(const item of legacyEntries){
       const { id, ...rest } = item;
@@ -1064,17 +1031,14 @@
     }
     await writer.update(userDocRef(uid), { entries: deleteField(), savingsEntries: deleteField() });
     await writer.commit();
-    window.dbgLog && window.dbgLog('MIGRATION: done');
   }
 
   function watchSettings(uid){
     if(unsubscribeSettings) unsubscribeSettings();
     unsubscribeSettings = onSnapshot(userDocRef(uid), (snap)=>{
-      window.dbgLog && window.dbgLog('SETTINGS snapshot: exists=' + snap.exists() + (snap.exists() ? (' periods=' + JSON.stringify(snap.data().periods||[])) : ''));
       if(snap.exists()) settingsChannel.emit(snap.data());
       setSyncBadge('synced');
     }, (err)=>{
-      window.dbgLog && window.dbgLog('SETTINGS snapshot ERROR: ' + err.code);
       console.error('Firestore settings snapshot error', err);
       setSyncBadge('error');
     });
@@ -1089,10 +1053,8 @@
         type: ch.type, id: ch.doc.id,
         data: ch.type === 'removed' ? null : { id: ch.doc.id, ...ch.doc.data() }
       }));
-      window.dbgLog && window.dbgLog(label + ' snapshot: ' + changes.length + ' change(s), total docs=' + snap.size);
       channel.emit(changes);
     }, (err)=>{
-      window.dbgLog && window.dbgLog(label + ' snapshot ERROR: ' + err.code);
       console.error('Firestore ' + label.toLowerCase() + ' snapshot error', err);
       setSyncBadge('error');
     });
@@ -1112,10 +1074,8 @@
       const snap = await getDoc(ref);
       if(snap.exists()){
         const d = snap.data();
-        window.dbgLog && window.dbgLog('DOC CHECK: existing settings doc FOUND for uid=' + uid + '. periods=' + JSON.stringify(d.periods||[]));
         await migrateLegacyArraysIfNeeded(uid, d);
       }else{
-        window.dbgLog && window.dbgLog('DOC CHECK: NO settings doc for uid=' + uid + ' -> creating a brand-new one now');
         // Default first period: the current calendar month. From here on the
         // user owns the boundaries — this is just a sane starting point.
         const now = new Date();
@@ -1142,7 +1102,6 @@
       // simply retry on the next sign-in — it writes each legacy record
       // under its own pre-existing id, so re-running it never duplicates
       // anything.
-      window.dbgLog && window.dbgLog('ensureUserDocExists ERROR (non-fatal, continuing): ' + (e.code || e.message));
       console.error('ensureUserDocExists error', e);
       setSyncBadge('error');
     }
@@ -1157,7 +1116,6 @@
     if(onAccountSwitch) onAccountSwitch();
     if(user){
       currentUser = user;
-      window.dbgLog && window.dbgLog('AUTH: signed in. uid=' + user.uid + ' email=' + (user.email || '(no email)') + ' provider=' + (user.providerData.map(p=>p.providerId).join(',')||'?'));
       document.getElementById('authScreen').style.display = 'none';
       document.getElementById('mainApp').style.display = '';
       const emailEl = document.getElementById('accountEmail');
@@ -1170,7 +1128,6 @@
       if(onAuthReady) onAuthReady(user);
     }else{
       currentUser = null;
-      window.dbgLog && window.dbgLog('AUTH: signed out / no user');
       if(unsubscribeSettings){ unsubscribeSettings(); unsubscribeSettings = null; }
       if(unsubscribeEntries){ unsubscribeEntries(); unsubscribeEntries = null; }
       if(unsubscribeSavings){ unsubscribeSavings(); unsubscribeSavings = null; }
@@ -1625,7 +1582,6 @@
   // merged wholesale, but that's safe here: the worst a stale write can do
   // is clobber a category rename or a period edit, never a transaction.
   function applyRemoteState(data){
-    if(window.dbgLog) window.dbgLog('SETTINGS applied: periods=' + JSON.stringify(data.periods||'undefined'));
     if(data.customCats) customCats = data.customCats;
     if(data.categoryOverrides) categoryOverrides = data.categoryOverrides;
     if(data.categoryHidden) categoryHidden = data.categoryHidden;
@@ -1664,12 +1620,10 @@
   }
   function applyEntriesChanges(changes){
     entries = applyLedgerDelta(entriesMap, changes);
-    if(window.dbgLog) window.dbgLog('entries applied: +/-' + changes.length + ' change(s), total in memory=' + entries.length);
     renderAll();
   }
   function applySavingsChanges(changes){
     savingsEntries = applyLedgerDelta(savingsMap, changes);
-    if(window.dbgLog) window.dbgLog('savings applied: +/-' + changes.length + ' change(s), total in memory=' + savingsEntries.length);
     renderAll();
   }
 
@@ -1681,7 +1635,6 @@
   function resetLedgerState(){
     entries = []; entriesMap = new Map();
     savingsEntries = []; savingsMap = new Map();
-    if(window.dbgLog) window.dbgLog('LEDGER STATE RESET (account switch)');
     renderAll();
   }
 
@@ -1695,7 +1648,6 @@
   // until the module is actually ready instead of checking only once.
   (function registerWithLentaCloud(){
     if(window.LentaCloud){
-      if(window.dbgLog) window.dbgLog('registerWithLentaCloud: window.LentaCloud found, wiring up handlers');
       window.LentaCloud.setOnRemoteState(applyRemoteState);
       window.LentaCloud.setOnEntriesChange(applyEntriesChanges);
       window.LentaCloud.setOnSavingsChange(applySavingsChanges);
@@ -1776,7 +1728,6 @@
     renderSavingsGrid();
     renderSavingsHistory();
     renderSavingsConverted();
-    if(window.dbgLog) window.dbgLog('renderAll DONE: entries.length=' + entries.length + ' savingsEntries.length=' + savingsEntries.length + ' selectedDate=' + iso(selectedDate) + ' periods=' + JSON.stringify(periods));
   }
 
   function renderMonthLabel(){
