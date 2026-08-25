@@ -864,6 +864,14 @@
   let unsubscribeEntries = null;
   let unsubscribeSavings = null;
   let onAuthReady = null;
+  // Fired synchronously at the very top of every auth-state transition
+  // (sign-in, sign-out, or switching between two different accounts in the
+  // same tab) — BEFORE any watcher for the (possibly new) account attaches.
+  // Without this, the classic script's local entries/savings Maps — which
+  // are only ever updated incrementally — have no way to know a brand-new,
+  // genuinely-empty collection just replaced a previous account's data, and
+  // would keep showing the old account's numbers on screen.
+  let onAccountSwitch = null;
 
   // --- Generic "replay-when-ready" channel -----------------------------
   // The classic <script> that owns the app's data model runs after this
@@ -1068,6 +1076,9 @@
 
   onAuthStateChanged(auth, async (user)=>{
     document.getElementById('authLoading').style.display = 'none';
+    // Wipe local ledger state BEFORE anything else touches it — covers
+    // sign-out, sign-in, and switching accounts entirely within one tab.
+    if(onAccountSwitch) onAccountSwitch();
     if(user){
       currentUser = user;
       window.dbgLog && window.dbgLog('AUTH: signed in. uid=' + user.uid + ' email=' + (user.email || '(no email)') + ' provider=' + (user.providerData.map(p=>p.providerId).join(',')||'?'));
@@ -1166,6 +1177,7 @@
     setOnEntriesChange(fn){ entriesChannel.setHandler(fn); },
     setOnSavingsChange(fn){ savingsChannel.setHandler(fn); },
     setOnAuthReady(fn){ onAuthReady = fn; },
+    setOnAccountSwitch(fn){ onAccountSwitch = fn; },
     get currentUser(){ return currentUser; },
     setSyncBadge,
   };
@@ -1590,6 +1602,18 @@
     renderAll();
   }
 
+  // Called before any watcher for a (possibly different) account attaches —
+  // on sign-out, sign-in, and switching accounts within the same tab. Wipes
+  // whatever the PREVIOUS account's ledger looked like in memory, so an
+  // account with genuinely zero records can never keep showing a previous
+  // account's totals just because zero Firestore changes fired for it.
+  function resetLedgerState(){
+    entries = []; entriesMap = new Map();
+    savingsEntries = []; savingsMap = new Map();
+    if(window.dbgLog) window.dbgLog('LEDGER STATE RESET (account switch)');
+    renderAll();
+  }
+
   // window.LentaCloud is exposed by a <script type="module"> block. Module
   // scripts always execute AFTER classic scripts have already run (they're
   // deferred by spec), so a one-time `if(window.LentaCloud)` check here was
@@ -1604,6 +1628,7 @@
       window.LentaCloud.setOnRemoteState(applyRemoteState);
       window.LentaCloud.setOnEntriesChange(applyEntriesChanges);
       window.LentaCloud.setOnSavingsChange(applySavingsChanges);
+      window.LentaCloud.setOnAccountSwitch(resetLedgerState);
       window.LentaCloud.setOnAuthReady(()=>{ fetchFxRates(); });
     }else{
       setTimeout(registerWithLentaCloud, 20);
