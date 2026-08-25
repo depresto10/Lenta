@@ -930,43 +930,61 @@
     text.textContent = labels[status] || status;
   }
 
-  async function pushState(partialState){
+  // Every write below (settings, single-record ledger writes, and the
+  // deliberate full-collection replace) needs the exact same three things:
+  // bail out if signed out, flip the sync badge while in flight, and log +
+  // surface any failure without ever throwing back at the caller. Rather
+  // than repeat that shape seven times, the shape lives once here.
+  async function withSync(label, fn){
     if(!currentUser) return;
     try{
       setSyncBadge('syncing');
-      await setDoc(userDocRef(currentUser.uid), { ...partialState, updatedAt: serverTimestamp() }, { merge: true });
+      await fn();
       setSyncBadge('synced');
     }catch(e){
-      window.dbgLog && window.dbgLog('SETTINGS write error: ' + e.code + ' ' + e.message);
-      console.error('Firestore settings write error', e);
+      window.dbgLog && window.dbgLog(label + ' error: ' + (e.code || e.message));
+      console.error(label + ' error', e);
       setSyncBadge('error');
     }
+  }
+
+  function pushState(partialState){
+    return withSync('SETTINGS write', ()=>
+      setDoc(userDocRef(currentUser.uid), { ...partialState, updatedAt: serverTimestamp() }, { merge: true }));
   }
 
   // --- Single-record ledger writes ---------------------------------------
   // Each of these touches exactly one document. There is deliberately no
   // "write the whole array" path anymore for entries/savings.
-  async function upsertEntry(entry){
-    if(!currentUser) return;
+  function upsertEntry(entry){
     const { id, ...rest } = entry;
-    try{ setSyncBadge('syncing'); await setDoc(doc(entriesCol(currentUser.uid), id), rest); setSyncBadge('synced'); }
-    catch(e){ window.dbgLog && window.dbgLog('ENTRY upsert error: ' + e.code); console.error('Firestore entry write error', e); setSyncBadge('error'); }
+    return withSync('ENTRY upsert', ()=> setDoc(doc(entriesCol(currentUser.uid), id), rest));
   }
-  async function deleteEntryDoc(id){
-    if(!currentUser) return;
-    try{ setSyncBadge('syncing'); await deleteDoc(doc(entriesCol(currentUser.uid), id)); setSyncBadge('synced'); }
-    catch(e){ window.dbgLog && window.dbgLog('ENTRY delete error: ' + e.code); console.error('Firestore entry delete error', e); setSyncBadge('error'); }
+  function deleteEntryDoc(id){
+    return withSync('ENTRY delete', ()=> deleteDoc(doc(entriesCol(currentUser.uid), id)));
   }
-  async function upsertSaving(entry){
-    if(!currentUser) return;
+  function upsertSaving(entry){
     const { id, ...rest } = entry;
-    try{ setSyncBadge('syncing'); await setDoc(doc(savingsCol(currentUser.uid), id), rest); setSyncBadge('synced'); }
-    catch(e){ window.dbgLog && window.dbgLog('SAVING upsert error: ' + e.code); console.error('Firestore saving write error', e); setSyncBadge('error'); }
+    return withSync('SAVING upsert', ()=> setDoc(doc(savingsCol(currentUser.uid), id), rest));
   }
-  async function deleteSavingDoc(id){
-    if(!currentUser) return;
-    try{ setSyncBadge('syncing'); await deleteDoc(doc(savingsCol(currentUser.uid), id)); setSyncBadge('synced'); }
-    catch(e){ window.dbgLog && window.dbgLog('SAVING delete error: ' + e.code); console.error('Firestore saving delete error', e); setSyncBadge('error'); }
+  function deleteSavingDoc(id){
+    return withSync('SAVING delete', ()=> deleteDoc(doc(savingsCol(currentUser.uid), id)));
+  }
+
+  // Firestore write batches cap at 500 ops, so any bulk operation over that
+  // needs to flush and start a fresh batch partway through. Both the
+  // full-collection replace (below) and the legacy-schema migration need
+  // exactly this — count ops, auto-flush at a safe margin, commit whatever
+  // is left at the end — so it lives once here instead of twice.
+  function makeBatchWriter(){
+    let batch = writeBatch(db), ops = 0;
+    async function flushIfFull(){ if(ops >= 450){ await batch.commit(); batch = writeBatch(db); ops = 0; } }
+    return {
+      async set(ref, data){ batch.set(ref, data); ops++; await flushIfFull(); },
+      async delete(ref){ batch.delete(ref); ops++; await flushIfFull(); },
+      async update(ref, data){ batch.update(ref, data); ops++; await flushIfFull(); },
+      async commit(){ if(ops > 0) await batch.commit(); }
+    };
   }
 
   // --- Deliberate full-collection replace (import / reset only) ---------
@@ -975,25 +993,19 @@
   // never as a side effect of an ordinary add/edit/delete.
   async function replaceCollection(colRef, items){
     const existing = await getDocs(colRef);
-    let batch = writeBatch(db), ops = 0;
-    const maybeFlush = async ()=>{ if(ops >= 450){ await batch.commit(); batch = writeBatch(db); ops = 0; } };
-    for(const d of existing.docs){ batch.delete(d.ref); ops++; await maybeFlush(); }
+    const writer = makeBatchWriter();
+    for(const d of existing.docs) await writer.delete(d.ref);
     for(const item of items){
       const { id, ...rest } = item;
-      if(!id) continue;
-      batch.set(doc(colRef, id), rest); ops++; await maybeFlush();
+      if(id) await writer.set(doc(colRef, id), rest);
     }
-    if(ops > 0) await batch.commit();
+    await writer.commit();
   }
-  async function restoreEntries(items){
-    if(!currentUser) return;
-    try{ setSyncBadge('syncing'); await replaceCollection(entriesCol(currentUser.uid), items); setSyncBadge('synced'); }
-    catch(e){ window.dbgLog && window.dbgLog('restoreEntries error: ' + e.code); console.error('restoreEntries error', e); setSyncBadge('error'); }
+  function restoreEntries(items){
+    return withSync('restoreEntries', ()=> replaceCollection(entriesCol(currentUser.uid), items));
   }
-  async function restoreSavings(items){
-    if(!currentUser) return;
-    try{ setSyncBadge('syncing'); await replaceCollection(savingsCol(currentUser.uid), items); setSyncBadge('synced'); }
-    catch(e){ window.dbgLog && window.dbgLog('restoreSavings error: ' + e.code); console.error('restoreSavings error', e); setSyncBadge('error'); }
+  function restoreSavings(items){
+    return withSync('restoreSavings', ()=> replaceCollection(savingsCol(currentUser.uid), items));
   }
 
   // --- One-time migration for accounts still on the old schema ----------
@@ -1005,20 +1017,17 @@
     const legacySavings = Array.isArray(docData.savingsEntries) ? docData.savingsEntries : [];
     if(!legacyEntries.length && !legacySavings.length) return;
     window.dbgLog && window.dbgLog('MIGRATION: legacy entries=' + legacyEntries.length + ' legacySavings=' + legacySavings.length + ' -> moving into subcollections');
-    let batch = writeBatch(db), ops = 0;
-    const maybeFlush = async ()=>{ if(ops >= 450){ await batch.commit(); batch = writeBatch(db); ops = 0; } };
+    const writer = makeBatchWriter();
     for(const item of legacyEntries){
       const { id, ...rest } = item;
-      if(!id) continue;
-      batch.set(doc(entriesCol(uid), id), rest); ops++; await maybeFlush();
+      if(id) await writer.set(doc(entriesCol(uid), id), rest);
     }
     for(const item of legacySavings){
       const { id, ...rest } = item;
-      if(!id) continue;
-      batch.set(doc(savingsCol(uid), id), rest); ops++; await maybeFlush();
+      if(id) await writer.set(doc(savingsCol(uid), id), rest);
     }
-    batch.update(userDocRef(uid), { entries: deleteField(), savingsEntries: deleteField() }); ops++;
-    await batch.commit();
+    await writer.update(userDocRef(uid), { entries: deleteField(), savingsEntries: deleteField() });
+    await writer.commit();
     window.dbgLog && window.dbgLog('MIGRATION: done');
   }
 
@@ -1034,33 +1043,31 @@
       setSyncBadge('error');
     });
   }
-  function watchEntries(uid){
-    if(unsubscribeEntries) unsubscribeEntries();
-    unsubscribeEntries = onSnapshot(entriesCol(uid), (snap)=>{
+
+  // entries/savings are watched identically — a collection whose per-doc
+  // add/modify/remove deltas get handed to a channel exactly as they come
+  // in. Only the collection ref, channel, and log label differ.
+  function watchCollection(colRef, channel, label){
+    return onSnapshot(colRef, (snap)=>{
       const changes = snap.docChanges().map(ch=>({
         type: ch.type, id: ch.doc.id,
         data: ch.type === 'removed' ? null : { id: ch.doc.id, ...ch.doc.data() }
       }));
-      window.dbgLog && window.dbgLog('ENTRIES snapshot: ' + changes.length + ' change(s), total docs=' + snap.size);
-      entriesChannel.emit(changes);
+      window.dbgLog && window.dbgLog(label + ' snapshot: ' + changes.length + ' change(s), total docs=' + snap.size);
+      channel.emit(changes);
     }, (err)=>{
-      window.dbgLog && window.dbgLog('ENTRIES snapshot ERROR: ' + err.code);
-      console.error('Firestore entries snapshot error', err);
+      window.dbgLog && window.dbgLog(label + ' snapshot ERROR: ' + err.code);
+      console.error('Firestore ' + label.toLowerCase() + ' snapshot error', err);
+      setSyncBadge('error');
     });
+  }
+  function watchEntries(uid){
+    if(unsubscribeEntries) unsubscribeEntries();
+    unsubscribeEntries = watchCollection(entriesCol(uid), entriesChannel, 'ENTRIES');
   }
   function watchSavings(uid){
     if(unsubscribeSavings) unsubscribeSavings();
-    unsubscribeSavings = onSnapshot(savingsCol(uid), (snap)=>{
-      const changes = snap.docChanges().map(ch=>({
-        type: ch.type, id: ch.doc.id,
-        data: ch.type === 'removed' ? null : { id: ch.doc.id, ...ch.doc.data() }
-      }));
-      window.dbgLog && window.dbgLog('SAVINGS snapshot: ' + changes.length + ' change(s), total docs=' + snap.size);
-      savingsChannel.emit(changes);
-    }, (err)=>{
-      window.dbgLog && window.dbgLog('SAVINGS snapshot ERROR: ' + err.code);
-      console.error('Firestore savings snapshot error', err);
-    });
+    unsubscribeSavings = watchCollection(savingsCol(uid), savingsChannel, 'SAVINGS');
   }
 
   async function ensureUserDocExists(uid){
@@ -1616,21 +1623,20 @@
   // happens to have in memory" and use it to overwrite everyone's history,
   // because a snapshot here only ever describes the specific document(s)
   // that actually changed.
-  function applyEntriesChanges(changes){
+  function applyLedgerDelta(map, changes){
     changes.forEach(ch=>{
-      if(ch.type === 'removed') entriesMap.delete(ch.id);
-      else entriesMap.set(ch.id, ch.data);
+      if(ch.type === 'removed') map.delete(ch.id);
+      else map.set(ch.id, ch.data);
     });
-    entries = Array.from(entriesMap.values());
+    return Array.from(map.values());
+  }
+  function applyEntriesChanges(changes){
+    entries = applyLedgerDelta(entriesMap, changes);
     if(window.dbgLog) window.dbgLog('entries applied: +/-' + changes.length + ' change(s), total in memory=' + entries.length);
     renderAll();
   }
   function applySavingsChanges(changes){
-    changes.forEach(ch=>{
-      if(ch.type === 'removed') savingsMap.delete(ch.id);
-      else savingsMap.set(ch.id, ch.data);
-    });
-    savingsEntries = Array.from(savingsMap.values());
+    savingsEntries = applyLedgerDelta(savingsMap, changes);
     if(window.dbgLog) window.dbgLog('savings applied: +/-' + changes.length + ' change(s), total in memory=' + savingsEntries.length);
     renderAll();
   }
