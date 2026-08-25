@@ -532,7 +532,10 @@
 </head>
 <body>
 
-<div id="lentaDebugPanel" style="position:fixed;bottom:0;left:0;right:0;max-height:40vh;overflow-y:auto;background:rgba(0,0,0,.94);color:#5cff5c;font-family:monospace;font-size:10.5px;line-height:1.6;padding:8px 10px;z-index:999999;white-space:pre-wrap;border-top:2px solid #5cff5c;-webkit-user-select:text;user-select:text;"></div>
+<div id="lentaDebugBar" style="position:fixed;bottom:0;left:0;right:0;z-index:999999;font-family:monospace;">
+  <button id="lentaDebugToggle" type="button" style="display:block;width:100%;box-sizing:border-box;text-align:left;background:#111;color:#5cff5c;border:none;border-top:2px solid #5cff5c;font-family:monospace;font-size:11px;padding:6px 10px;cursor:pointer;">▲ debug log — tap to open</button>
+  <div id="lentaDebugPanel" style="display:none;max-height:38vh;overflow-y:auto;background:rgba(0,0,0,.96);color:#5cff5c;font-size:10.5px;line-height:1.6;padding:8px 10px;white-space:pre-wrap;-webkit-user-select:text;user-select:text;"></div>
+</div>
 <script>
   window.__lentaDbg = [];
   window.dbgLog = function(msg){
@@ -541,8 +544,22 @@
     window.__lentaDbg.push(line);
     var panel = document.getElementById('lentaDebugPanel');
     if(panel){ panel.textContent = window.__lentaDbg.join('\n'); panel.scrollTop = panel.scrollHeight; }
+    var toggle = document.getElementById('lentaDebugToggle');
+    if(toggle && toggle.dataset.open !== '1'){ toggle.textContent = '▲ debug log (' + window.__lentaDbg.length + ') — tap to open'; }
     try{ console.log(line); }catch(e){}
   };
+  (function(){
+    var toggle = document.getElementById('lentaDebugToggle');
+    var panel = document.getElementById('lentaDebugPanel');
+    toggle.addEventListener('click', function(){
+      var isOpen = toggle.dataset.open === '1';
+      toggle.dataset.open = isOpen ? '0' : '1';
+      panel.style.display = isOpen ? 'none' : 'block';
+      toggle.textContent = isOpen
+        ? ('▲ debug log (' + window.__lentaDbg.length + ') — tap to open')
+        : '▼ debug log — tap to close';
+    });
+  })();
   window.dbgLog('--- debug panel initialized ---');
 </script>
 
