@@ -384,7 +384,12 @@
   .tab-btn:hover{ border-color: var(--fg-muted); }
   .tab-btn.active{ border-color: var(--gold); background: var(--gold-soft); color: var(--gold); }
 
-  .sav-card .sav-cur{ cursor:pointer; }
+  .sav-card .sav-cur{ cursor:pointer; gap:4px; }
+  .sav-card .sav-cur .sav-cur-chev{ opacity:.7; }
+  .cur-action-title{ display:flex; align-items:center; gap:10px; }
+  .cur-action-title .cur-action-code{ font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.4; font-weight:700; letter-spacing:.5px; background: var(--text); color: var(--paper); padding:2px 6px; border-radius:3px; }
+  .cur-action-hint{ font-family:'Onest',sans-serif; font-size:13px; line-height:1.5; color: var(--text-soft); margin: -6px 0 18px; }
+  .btn-stamp.btn-danger{ background: var(--red); color: #fff; }
   .sav-card .sav-reorder{ position:absolute; top:10px; right:8px; display:flex; gap:2px; }
   .sav-card .sav-reorder button{ background:none; border:none; color: var(--fg-muted); cursor:pointer; width:24px; height:24px; display:flex; align-items:center; justify-content:center; padding:0; border-radius:50%; }
   .sav-card .sav-reorder button:hover{ color: var(--fg); background: var(--surface-hover); }
@@ -888,11 +893,22 @@
   </div>
 </div>
 
+<div class="sheet-overlay" id="curActionOverlay">
+  <div class="sheet" id="curActionSheet">
+    <div class="sheet-handle"></div>
+    <h2 id="curActionTitle" class="cur-action-title"></h2>
+    <div class="cur-action-hint" id="curActionHint"></div>
+    <div class="sheet-actions">
+      <button class="btn-ghost" id="curActionCancel" data-i18n="btnCancel">Отмена</button>
+      <button class="btn-stamp btn-danger" id="curDeleteBtn" data-i18n="curDeleteBtn">УДАЛИТЬ ВАЛЮТУ</button>
+    </div>
+  </div>
+</div>
+
 <div class="sheet-overlay" id="curPickerOverlay">
   <div class="sheet" id="curPickerSheet">
     <div class="sheet-handle"></div>
     <h2 id="curPickerTitle">Добавить валюту</h2>
-    <div class="rename-cur-hint" id="curPickerHint" style="display:none;font-family:'Onest',sans-serif;font-size:12px;line-height:1.4;color:var(--text-soft);margin:-8px 0 10px;"></div>
     <input class="cur-search" id="curSearch" type="text" placeholder="поиск: злотый, PLN…" data-i18n-placeholder="curSearchPlaceholder" autocomplete="off" />
     <div id="curPickerList"></div>
     <div class="sheet-actions" style="margin-top:14px;">
@@ -1385,9 +1401,9 @@
       sheetIncomeTitle:'Пробить доход', sheetExpenseTitle:'Пробить расход',
       sheetDepositTitle:'Внести в накопления', sheetWithdrawTitle:'Забрать из накоплений',
       addCustomCat:'+ своя статья', addCustomCur:'+ валюта',
-      addCurrencyBtn:'добавить валюту', curPickerAdd:'Добавить валюту', curPickerRename:'Заменить валюту', curSearchPlaceholder:'поиск: злотый, PLN…',
+      addCurrencyBtn:'добавить валюту', curPickerAdd:'Добавить валюту', curSearchPlaceholder:'поиск: злотый, PLN…',
       curGroupMain:'основные', curGroupTravel:'для поездок', curGroupOther:'все остальные', curTaken:'уже есть', curNothing:'ничего не нашлось',
-      curRenameHint:'Выбери, на какую валюту заменить', curRenameBlocked:'Заменить валюту можно, только когда на ней нет денег. Сначала выведи остаток.', curRenameBase:'Основные валюты (BYN, USD, EUR, RUB) заменить нельзя.',
+      curDeleteBtn:'УДАЛИТЬ ВАЛЮТУ', curDeleteHint:'Карточка пропадёт с экрана. История операций останется, а вернуть валюту можно через «+ добавить валюту».', curDeleteBlocked:'На этой валюте есть деньги. Удалить её можно, только когда остаток 0 — сначала выведи деньги.', curDeleteLast:'Это последняя валюта — хотя бы одна должна остаться.',
       moveLeft:'Переместить левее', moveRight:'Переместить правее',
       cashLabel:'Наличные', noncashLabel:'Безналичные',
       confirmReset:'Точно удалить все данные приложения без возможности восстановления? Сделай резервную копию заранее, если нужно.',
@@ -1427,9 +1443,9 @@
       sheetIncomeTitle:'Record income', sheetExpenseTitle:'Record expense',
       sheetDepositTitle:'Deposit to savings', sheetWithdrawTitle:'Withdraw from savings',
       addCustomCat:'+ custom category', addCustomCur:'+ currency',
-      addCurrencyBtn:'add currency', curPickerAdd:'Add currency', curPickerRename:'Replace currency', curSearchPlaceholder:'search: zloty, PLN…',
+      addCurrencyBtn:'add currency', curPickerAdd:'Add currency', curSearchPlaceholder:'search: zloty, PLN…',
       curGroupMain:'main', curGroupTravel:'for travel', curGroupOther:'all others', curTaken:'added', curNothing:'nothing found',
-      curRenameHint:'Pick the currency to replace', curRenameBlocked:'You can replace a currency only when it holds no money. Withdraw the balance first.', curRenameBase:'Main currencies (BYN, USD, EUR, RUB) cannot be replaced.',
+      curDeleteBtn:'DELETE CURRENCY', curDeleteHint:'The card disappears from the screen. History stays, and you can bring the currency back via “+ add currency”.', curDeleteBlocked:'This currency still holds money. You can delete it only when the balance is 0 — withdraw first.', curDeleteLast:'This is the last currency — at least one must stay.',
       moveLeft:'Move left', moveRight:'Move right',
       cashLabel:'Cash', noncashLabel:'Non-cash',
       confirmReset:'Delete all app data permanently? Make a backup first if you need one.',
@@ -1523,6 +1539,9 @@
   const CURRENCY_BY_CODE = new Map(CURRENCY_LIST.map(c=>[c.code, c]));
   function currencyName(code){ const c = CURRENCY_BY_CODE.get(code); return c ? (currentLang==='en' ? c.en : c.ru) : ''; }
   let savingsCurrencyOrder = [];
+  // Валюты, которые пользователь удалил с главного экрана (в т.ч. базовые
+  // BYN/USD/EUR/RUB). История операций по ним остаётся.
+  let hiddenCurrencies = [];
   let customCurrencies = [];
   let CURRENCIES = [...DEFAULT_CURRENCIES];
   function formLabel(form){ return form==='cash' ? t('cashLabel') : t('noncashLabel'); }
@@ -1712,7 +1731,7 @@
   function buildStatePayload(){
     return {
       customCats, categoryOverrides, categoryHidden,
-      customCurrencies, displayCurrency, savingsCurrencyOrder,
+      customCurrencies, hiddenCurrencies, displayCurrency, savingsCurrencyOrder,
       periods, lang: currentLang, theme: (localStorage.getItem('lenta_theme') || 'night')
     };
   }
@@ -1761,6 +1780,7 @@
     if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
     if(data.displayCurrency) displayCurrency = data.displayCurrency;
     if(Array.isArray(data.savingsCurrencyOrder)) savingsCurrencyOrder = data.savingsCurrencyOrder.filter(c=> typeof c==='string');
+    if(Array.isArray(data.hiddenCurrencies)) hiddenCurrencies = data.hiddenCurrencies.filter(c=> typeof c==='string');
     if(Array.isArray(data.periods) && data.periods.length){
       periods = data.periods.slice();
       sortPeriods();
@@ -1848,6 +1868,7 @@
   function persistDisplayCurrency(){ schedulePush({ displayCurrency }); }
   function persistLang(){ schedulePush({ lang: currentLang }); }
   function persistSavingsCurrencyOrder(){ schedulePush({ savingsCurrencyOrder }); }
+  function persistHiddenCurrencies(){ schedulePush({ hiddenCurrencies }); }
 
   function renderPeriodEditor(){
     const startEl = document.getElementById('periodStartInput');
@@ -2159,6 +2180,7 @@
   // Принимает только код из справочника CURRENCY_LIST — свободный ввод убран.
   function addCustomCurrency(code){
     if(!CURRENCY_BY_CODE.has(code)) return null;
+    if(hiddenCurrencies.includes(code)){ hiddenCurrencies = hiddenCurrencies.filter(c=> c!==code); persistHiddenCurrencies(); }
     if(!CURRENCIES.includes(code)){
       customCurrencies.push(code);
       CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies];
@@ -2175,7 +2197,10 @@
   function currenciesInUse(){
     const set = new Set(CURRENCIES);
     savingsEntries.forEach(e=> set.add(e.currency));
-    return Array.from(set);
+    // Удалённая валюта не показывается, но если на ней почему-то есть деньги
+    // (например, пришли с другого устройства) — карточка вернётся, чтобы
+    // остаток никогда не «пропал» из виду.
+    return Array.from(set).filter(c=> !hiddenCurrencies.includes(c) || Math.abs(savingsBalance(c,'cash') + savingsBalance(c,'noncash')) > 0.005);
   }
 
   // Порядок карточек: сначала сохранённый пользователем, новые — в конце.
@@ -2212,14 +2237,14 @@
           <button type="button" class="sav-move-left" title="${t('moveLeft')}" aria-label="${t('moveLeft')}" ${idx===0?'disabled':''}>${CHEV_L}</button>
           <button type="button" class="sav-move-right" title="${t('moveRight')}" aria-label="${t('moveRight')}" ${idx===currencies.length-1?'disabled':''}>${CHEV_R}</button>
         </div>
-        <span class="sav-cur" title="${escapeHtml(currencyName(cur))}">${escapeHtml(cur)}</span>
+        <span class="sav-cur" title="${escapeHtml(currencyName(cur))}">${escapeHtml(cur)}<svg class="sav-cur-chev" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span>
         <div class="sav-row"><span>наличные</span><span>${fmt(cash)}</span></div>
         <div class="sav-row"><span>безналичные</span><span>${fmt(noncash)}</span></div>
         <div class="sav-total"><span>всего</span><span>${fmt(total)}</span></div>
       `;
       card.querySelector('.sav-move-left').addEventListener('click', ()=> moveSavingsCurrency(cur, -1));
       card.querySelector('.sav-move-right').addEventListener('click', ()=> moveSavingsCurrency(cur, 1));
-      card.querySelector('.sav-cur').addEventListener('click', ()=> startRenameCurrency(cur));
+      card.querySelector('.sav-cur').addEventListener('click', ()=> openCurrencyActions(cur));
       grid.appendChild(card);
     });
   }
@@ -2408,9 +2433,13 @@
   function closeSavingsSheet(){ savingsOverlay.classList.remove('open'); }
 
   function renderSavingsCurrencyChips(){
+    // Вносить можно только в валюты, которые уже есть на главном экране;
+    // новая валюта добавляется там же, кнопкой «+ добавить валюту».
+    const available = orderedCurrenciesInUse();
+    if(!available.includes(savingsCurrency)) savingsCurrency = available[0] || 'BYN';
     savingsCurLabel.textContent = savingsCurrency;
     savingsCurrencyChips.innerHTML = '';
-    CURRENCIES.forEach(cur=>{
+    available.forEach(cur=>{
       const chip = document.createElement('button');
       chip.className = 'chip' + (cur===savingsCurrency?' active':'');
       chip.type = 'button';
@@ -2418,24 +2447,15 @@
       chip.addEventListener('click', ()=>{ savingsCurrency = cur; renderSavingsCurrencyChips(); });
       savingsCurrencyChips.appendChild(chip);
     });
-    const addChip = document.createElement('button');
-    addChip.className = 'chip add-custom';
-    addChip.type = 'button';
-    addChip.textContent = t('addCustomCur');
-    addChip.addEventListener('click', ()=> openCurrencyPicker({ mode:'add', onPick: (code)=>{ savingsCurrency = code; renderSavingsCurrencyChips(); } }));
-    savingsCurrencyChips.appendChild(addChip);
   }
 
-  // --- Выбор валюты из списка (добавление и замена) -----------------------
+  // --- Выбор валюты из списка (добавление) -------------------------------
   const curPickerOverlay = document.getElementById('curPickerOverlay');
   const curSearch = document.getElementById('curSearch');
-  let curPickerState = null; // { mode:'add'|'rename', from, onPick }
+  let curPickerState = null; // { onPick }
   function openCurrencyPicker(state){
     curPickerState = state;
-    document.getElementById('curPickerTitle').textContent = state.mode==='rename' ? t('curPickerRename') : t('curPickerAdd');
-    const hint = document.getElementById('curPickerHint');
-    if(state.mode==='rename'){ hint.textContent = `${t('curRenameHint')} ${state.from}`; hint.style.display = 'block'; }
-    else hint.style.display = 'none';
+    document.getElementById('curPickerTitle').textContent = t('curPickerAdd');
     curSearch.value = '';
     renderCurrencyPicker();
     curPickerOverlay.classList.add('open');
@@ -2476,31 +2496,51 @@
   curPickerOverlay.addEventListener('click', (e)=>{ if(e.target===curPickerOverlay) closeCurrencyPicker(); });
 
   // Кнопка «добавить валюту» под остатками.
-  document.getElementById('addCurrencyBtn').addEventListener('click', ()=> openCurrencyPicker({ mode:'add', onPick: (code)=>{
+  document.getElementById('addCurrencyBtn').addEventListener('click', ()=> openCurrencyPicker({ onPick: (code)=>{
     addCustomCurrency(code);
     if(!savingsCurrencyOrder.includes(code)){ savingsCurrencyOrder = [...orderedCurrenciesInUse().filter(c=>c!==code), code]; persistSavingsCurrencyOrder(); }
     renderSavingsGrid(); renderDisplayCurrencyOptions(); renderSavingsConverted();
   }}));
 
-  // Замена валюты (нажатие на код на карточке). Разрешена только для
-  // добавленных валют и только если на ней нет денег — иначе «потеряются»
-  // показатели. Все записи истории переводятся на новый код.
-  function startRenameCurrency(from){
-    if(DEFAULT_CURRENCIES.includes(from)){ alert(t('curRenameBase')); return; }
-    const total = savingsBalance(from,'cash') + savingsBalance(from,'noncash');
-    if(total > 0.005){ alert(t('curRenameBlocked')); return; }
-    openCurrencyPicker({ mode:'rename', from, onPick: (to)=>{
-      savingsEntries.forEach(e=>{ if(e.currency===from){ e.currency = to; savingsMap.set(e.id, e); persistSavings(e); } });
-      customCurrencies = customCurrencies.includes(to) ? customCurrencies.filter(c=> c!==from) : customCurrencies.map(c=> c===from ? to : c);
-      CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies];
-      savingsCurrencyOrder = orderedCurrenciesInUse().map(c=> c===from ? to : c).filter((c,i,a)=> a.indexOf(c)===i);
-      if(savingsCurrency === from) savingsCurrency = to;
-      if(displayCurrency === from){ displayCurrency = to; persistDisplayCurrency(); }
-      persistCustomCurrencies();
-      persistSavingsCurrencyOrder();
-      renderSavingsGrid(); renderSavingsHistory(); renderSavingsConverted();
-    }});
+  // Действия с валютой (нажатие на код на карточке): удалить с главного
+  // экрана. Удалить можно, только если на валюте нет денег, и хотя бы одна
+  // валюта должна остаться. История операций по удалённой валюте остаётся,
+  // а вернуть валюту можно в любой момент через «+ добавить валюту».
+  const curActionOverlay = document.getElementById('curActionOverlay');
+  let curActionTarget = null;
+  function openCurrencyActions(cur){
+    curActionTarget = cur;
+    const name = currencyName(cur);
+    document.getElementById('curActionTitle').innerHTML = `<span class="c-code cur-action-code">${escapeHtml(cur)}</span>${name ? escapeHtml(name) : ''}`;
+    const total = savingsBalance(cur,'cash') + savingsBalance(cur,'noncash');
+    const hint = document.getElementById('curActionHint');
+    const btn = document.getElementById('curDeleteBtn');
+    const onlyOne = orderedCurrenciesInUse().length <= 1;
+    if(Math.abs(total) > 0.005){ hint.textContent = t('curDeleteBlocked'); btn.disabled = true; }
+    else if(onlyOne){ hint.textContent = t('curDeleteLast'); btn.disabled = true; }
+    else{ hint.textContent = t('curDeleteHint'); btn.disabled = false; }
+    curActionOverlay.classList.add('open');
+    syncOverlaysToVisualViewport();
   }
+  function closeCurrencyActions(){ curActionOverlay.classList.remove('open'); curActionTarget = null; }
+  document.getElementById('curActionCancel').addEventListener('click', closeCurrencyActions);
+  curActionOverlay.addEventListener('click', (e)=>{ if(e.target===curActionOverlay) closeCurrencyActions(); });
+  document.getElementById('curDeleteBtn').addEventListener('click', ()=>{
+    const cur = curActionTarget;
+    if(!cur) return;
+    const total = savingsBalance(cur,'cash') + savingsBalance(cur,'noncash');
+    if(Math.abs(total) > 0.005 || orderedCurrenciesInUse().length <= 1){ closeCurrencyActions(); return; }
+    if(!hiddenCurrencies.includes(cur)) hiddenCurrencies = [...hiddenCurrencies, cur];
+    if(customCurrencies.includes(cur)){ customCurrencies = customCurrencies.filter(c=> c!==cur); CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; persistCustomCurrencies(); }
+    savingsCurrencyOrder = savingsCurrencyOrder.filter(c=> c!==cur);
+    const left = orderedCurrenciesInUse();
+    if(savingsCurrency === cur) savingsCurrency = left[0];
+    if(displayCurrency === cur){ displayCurrency = left[0]; persistDisplayCurrency(); }
+    persistHiddenCurrencies();
+    persistSavingsCurrencyOrder();
+    closeCurrencyActions();
+    renderSavingsGrid(); renderDisplayCurrencyOptions(); renderSavingsConverted();
+  });
 
   function renderSavingsFormChips(){
     savingsFormChips.innerHTML = '';
@@ -2747,7 +2787,7 @@
   document.getElementById('exportBtn').addEventListener('click', ()=>{
     const payload = JSON.stringify({
       entries, savingsEntries, customCats, categoryOverrides, categoryHidden,
-      customCurrencies, savingsCurrencyOrder, displayCurrency, periods, lang: currentLang
+      customCurrencies, hiddenCurrencies, savingsCurrencyOrder, displayCurrency, periods, lang: currentLang
     }, null, 2);
     const blob = new Blob([payload], {type:'application/json'});
     const url = URL.createObjectURL(blob);
@@ -3185,7 +3225,7 @@
     customCats = {expense:[], income:[]}; categoryOverrides = {}; categoryHidden = [];
     savingsEntries = []; savingsMap = new Map();
     customCurrencies = []; CURRENCIES = [...DEFAULT_CURRENCIES];
-    savingsCurrencyOrder = [];
+    savingsCurrencyOrder = []; hiddenCurrencies = [];
     displayCurrency = 'BYN';
     { const now = new Date(); periods = [{ start: iso(new Date(now.getFullYear(), now.getMonth(), 1)), end: iso(new Date(now.getFullYear(), now.getMonth()+1, 0)) }]; }
     rebuildCats();
