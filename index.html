@@ -556,6 +556,25 @@
   .sum-card, .sav-card{
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 8px 24px -18px rgba(0,0,0,.55);
   }
+
+  /* ---- Напоминание о резервной копии (раз в 5 дней) ---- */
+  .backup-reminder{
+    position:relative; z-index:2; display:none; margin: 0 0 18px;
+    padding: 14px 14px 12px; border-radius: 16px;
+    background: linear-gradient(160deg, var(--gold-soft) 0%, transparent 70%), var(--surface);
+    border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+    backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 8px 24px -18px rgba(0,0,0,.55);
+  }
+  .backup-reminder.show{ display:block; animation: print-in .28s ease both; }
+  .br-title{ font-family:'Onest',sans-serif; font-weight:700; font-size:14px; line-height:1.4; color: var(--fg); }
+  .br-sub{ font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.4; color: var(--fg-muted); margin-top:2px; }
+  .br-actions{ display:flex; gap:8px; margin-top:12px; }
+  .br-save{ flex:1; height:40px; border:none; border-radius:999px; background: var(--gold); color: var(--ink);
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px; letter-spacing:1.2px; cursor:pointer; }
+  .br-later{ height:40px; padding: 0 16px; border:1px solid var(--surface-border-2); border-radius:999px; background:none;
+    color: var(--fg-muted); font-family:'Onest',sans-serif; font-weight:600; font-size:13px; cursor:pointer; }
+  .br-save:active, .br-later:active{ transform: scale(.97); }
 </style>
 </head>
 <body>
@@ -597,6 +616,14 @@
 </div>
 
 <div class="app" id="mainApp" style="display:none;">
+  <div class="backup-reminder" id="backupReminder" role="status">
+    <div class="br-title" id="brTitle">Пора сохранить резервную копию</div>
+    <div class="br-sub" id="brSub"></div>
+    <div class="br-actions">
+      <button type="button" class="br-save" id="brSaveBtn">СОХРАНИТЬ КОПИЮ</button>
+      <button type="button" class="br-later" id="brLaterBtn">Позже</button>
+    </div>
+  </div>
   <header class="topbar">
     <div class="topbar-left">
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">
@@ -1260,6 +1287,8 @@
       carryIncluded:'вкл. перенос',
       menuAppearance:'Оформление', menuTheme:'Тема оформления', menuDisplayCurrency:'Валюта отображения (накопления)',
       menuLanguage:'Язык / Language', menuData:'Данные', menuExport:'Резервная копия',
+      brTitle:'Пора сохранить резервную копию', brSave:'СОХРАНИТЬ КОПИЮ', brLater:'Позже',
+      brNever:'копия ещё ни разу не сохранялась', brAgo:'последняя копия — {n} дн. назад',
       menuImport:'Восстановить из файла', menuReset:'Сбросить все данные',
       menuAbout:'О приложении', menuAboutText:'ЛЕНТА — трекер финансов с синхронизацией через облако.',
       catMgrTitle:'Редактировать статьи', catMgrExpense:'Расходы', catMgrIncome:'Доходы',
@@ -1296,6 +1325,8 @@
       carryIncluded:'incl. carryover',
       menuAppearance:'Appearance', menuTheme:'Theme', menuDisplayCurrency:'Display currency (savings)',
       menuLanguage:'Язык / Language', menuData:'Data', menuExport:'Backup',
+      brTitle:'Time to save a backup', brSave:'SAVE BACKUP', brLater:'Later',
+      brNever:'no backup saved yet', brAgo:'last backup — {n} days ago',
       menuImport:'Restore from file', menuReset:'Reset all data',
       menuAbout:'About', menuAboutText:'LENTA is a finance tracker synced through the cloud.',
       catMgrTitle:'Edit categories', catMgrExpense:'Expenses', catMgrIncome:'Income',
@@ -1582,6 +1613,8 @@
   // merged wholesale, but that's safe here: the worst a stale write can do
   // is clobber a category rename or a period edit, never a transaction.
   function applyRemoteState(data){
+    remoteStateLoaded = true;
+    if(typeof data.lastBackupAt === 'number') lastBackupAt = data.lastBackupAt;
     if(data.customCats) customCats = data.customCats;
     if(data.categoryOverrides) categoryOverrides = data.categoryOverrides;
     if(data.categoryHidden) categoryHidden = data.categoryHidden;
@@ -1633,6 +1666,7 @@
   // account with genuinely zero records can never keep showing a previous
   // account's totals just because zero Firestore changes fired for it.
   function resetLedgerState(){
+    lastBackupAt = null; remoteStateLoaded = false;
     entries = []; entriesMap = new Map();
     savingsEntries = []; savingsMap = new Map();
     renderAll();
@@ -1718,6 +1752,49 @@
     return cat;
   }
 
+  // --- Напоминание о резервной копии -----------------------------------
+  // Раз в BACKUP_EVERY_DAYS дней сверху появляется плашка с кнопкой, которая
+  // скачивает файл резервной копии. Дата последней копии (lastBackupAt)
+  // хранится в облачных настройках, поэтому общая для всех устройств.
+  // «Позже» прячет плашку до следующего дня только на этом устройстве.
+  const BACKUP_EVERY_DAYS = 5;
+  const DAY_MS = 86400000;
+  let lastBackupAt = null;
+  let remoteStateLoaded = false;
+  function readSnooze(){ try{ return parseInt(localStorage.getItem('lenta_backupSnoozeUntil')||'0',10) || 0; }catch(e){ return 0; } }
+  function writeSnooze(ts){ try{ localStorage.setItem('lenta_backupSnoozeUntil', String(ts)); }catch(e){} }
+  function renderBackupReminder(){
+    const el = document.getElementById('backupReminder');
+    if(!el) return;
+    const loggedIn = !!(window.LentaCloud && window.LentaCloud.currentUser);
+    const hasData = entries.length > 0 || savingsEntries.length > 0;
+    const now = Date.now();
+    const due = !lastBackupAt || (now - lastBackupAt) >= BACKUP_EVERY_DAYS * DAY_MS;
+    const show = loggedIn && remoteStateLoaded && hasData && due && now >= readSnooze();
+    el.classList.toggle('show', show);
+    if(!show) return;
+    document.getElementById('brTitle').textContent = t('brTitle');
+    document.getElementById('brSaveBtn').textContent = t('brSave');
+    document.getElementById('brLaterBtn').textContent = t('brLater');
+    const sub = document.getElementById('brSub');
+    if(!lastBackupAt){ sub.textContent = t('brNever'); }
+    else{
+      const days = Math.floor((now - lastBackupAt) / DAY_MS);
+      sub.textContent = t('brAgo').replace('{n}', days);
+    }
+  }
+  function markBackupDone(){
+    lastBackupAt = Date.now();
+    if(window.LentaCloud && window.LentaCloud.currentUser) window.LentaCloud.pushState({ lastBackupAt });
+    renderBackupReminder();
+  }
+  document.getElementById('brSaveBtn').addEventListener('click', ()=> document.getElementById('exportBtn').click());
+  document.getElementById('brLaterBtn').addEventListener('click', ()=>{
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+1);
+    writeSnooze(d.getTime());
+    renderBackupReminder();
+  });
+
   function renderAll(){
     renderMonthLabel();
     renderWeekStrip();
@@ -1728,6 +1805,7 @@
     renderSavingsGrid();
     renderSavingsHistory();
     renderSavingsConverted();
+    renderBackupReminder();
   }
 
   function renderMonthLabel(){
@@ -2426,6 +2504,7 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    markBackupDone();
   });
   document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
   document.getElementById('importFile').addEventListener('change', (e)=>{
