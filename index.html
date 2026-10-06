@@ -570,10 +570,14 @@
   .br-title{ font-family:'Onest',sans-serif; font-weight:700; font-size:14px; line-height:1.4; color: var(--fg); }
   .br-sub{ font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.4; color: var(--fg-muted); margin-top:2px; }
   .br-actions{ display:flex; gap:8px; margin-top:12px; }
-  .br-save{ flex:1; height:40px; border:none; border-radius:999px; background: var(--gold); color: var(--ink);
-    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px; letter-spacing:1.2px; cursor:pointer; }
-  .br-later{ height:40px; padding: 0 16px; border:1px solid var(--surface-border-2); border-radius:999px; background:none;
-    color: var(--fg-muted); font-family:'Onest',sans-serif; font-weight:600; font-size:13px; cursor:pointer; }
+  .br-save{ flex:1; height:44px; display:flex; align-items:center; justify-content:center; padding: 0 16px; border:none; border-radius:999px;
+    background: var(--gold); color: var(--ink); font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; line-height:1;
+    letter-spacing:1.5px; cursor:pointer; transition: transform .12s ease, opacity .15s; }
+  .br-save:hover{ opacity:.92; }
+  .br-later{ height:44px; display:flex; align-items:center; justify-content:center; padding: 0 16px; border:1px solid var(--surface-3);
+    border-radius:999px; background: var(--surface); color: var(--fg-muted); font-family:'Onest',sans-serif; font-weight:700;
+    font-size:13px; line-height:1; cursor:pointer; transition: transform .12s ease, border-color .15s, color .15s; }
+  .br-later:hover{ border-color: var(--fg-muted); color: var(--fg); }
   .br-save:active, .br-later:active{ transform: scale(.97); }
 </style>
 </head>
