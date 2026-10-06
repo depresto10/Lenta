@@ -472,6 +472,14 @@
   .catmgr-icon-btn:hover{ background: var(--surface-2); color: var(--text); }
   .catmgr-icon-btn:hover{ color: var(--sheet-accent); }
   .catmgr-icon-btn.danger:hover{ color: var(--red); }
+  .catmgr-icon-btn svg{ width:18px; height:18px; }
+  .catmgr-add-row{ display:none; gap:8px; align-items:center; padding: 10px 2px 4px; }
+  .catmgr-add-row.show{ display:flex; }
+  .catmgr-add-row input{ flex:1; min-width:0; border:none; border-bottom: 1.5px solid var(--text); background:none; outline:none; font-family:'Onest',sans-serif; font-size:16px; line-height:1.4; padding: 6px 2px; color:var(--text); }
+  .catmgr-add-row button{ height:38px; display:flex; align-items:center; justify-content:center; border:none; border-radius: 999px; padding: 0 16px; font-family:'Onest',sans-serif; font-weight:700; font-size:12px; line-height:1; cursor:pointer; flex-shrink:0; transition: opacity .15s; }
+  .catmgr-add-row button:hover{ opacity:.85; }
+  .catmgr-add-toggle{ display:flex; align-items:center; gap:8px; width:100%; padding: 10px 2px; margin-top:4px; background:none; border:none; border-top: 1px dashed var(--paper-line); color: var(--sheet-accent); font-family:'Onest',sans-serif; font-size:13px; line-height:1.4; font-weight:700; cursor:pointer; }
+  .catmgr-add-toggle:hover{ opacity:.8; }
 
   /* ---- Auth screen ---- */
   /* Auth screen is a fixed brand experience (amethyst palette + mascot),
@@ -844,6 +852,11 @@
       <button type="button" data-cat-type="income" data-i18n="catMgrIncome">Доходы</button>
     </div>
     <div id="catMgrList"></div>
+    <button type="button" class="catmgr-add-toggle" id="catMgrAddToggle" data-i18n="catMgrAddCat">+ добавить статью</button>
+    <div class="catmgr-add-row" id="catMgrAddRow">
+      <input type="text" id="catMgrNewInput" placeholder="название статьи" data-i18n-placeholder="newCatPlaceholder" autocomplete="off" />
+      <button type="button" class="cc-confirm" id="catMgrNewConfirm">Добавить</button>
+    </div>
     <div class="sheet-actions">
       <button class="btn-ghost" id="catMgrCloseBtn" style="margin-left:auto;" data-i18n="catMgrDone">Готово</button>
     </div>
@@ -1043,6 +1056,41 @@
     return withSync('restoreSavings', ()=> replaceCollection(savingsCol(currentUser.uid), items));
   }
 
+  // Восстановление из файла: ТОЛЬКО добавляет записи, которых в облаке нет.
+  // Ничего не удаляет и не перезаписывает — даже если запись с тем же id в
+  // облаке отличается от файла, побеждает облако (там могут быть более
+  // свежие правки). Список существующих id берётся прямо из Firestore, а не
+  // из памяти вкладки, чтобы не зависеть от того, успела ли лента загрузиться.
+  async function mergeCollection(colRef, items){
+    const existing = await getDocs(colRef);
+    const have = new Set(existing.docs.map(d=> d.id));
+    const writer = makeBatchWriter();
+    let added = 0, skippedExisting = 0;
+    for(const item of items){
+      const { id, ...rest } = item;
+      if(!id) continue;
+      if(have.has(id)){ skippedExisting++; continue; }
+      await writer.set(doc(colRef, id), rest);
+      have.add(id); added++;
+    }
+    await writer.commit();
+    return { added, skippedExisting };
+  }
+  async function mergeLedgerFromBackup(entryItems, savingItems){
+    if(!currentUser) throw new Error('not-signed-in');
+    setSyncBadge('syncing');
+    try{
+      const e = await mergeCollection(entriesCol(currentUser.uid), entryItems);
+      const sv = await mergeCollection(savingsCol(currentUser.uid), savingItems);
+      setSyncBadge('synced');
+      return { added: e.added + sv.added, existing: e.skippedExisting + sv.skippedExisting };
+    }catch(err){
+      console.error('mergeLedgerFromBackup error', err);
+      setSyncBadge('error');
+      throw err;
+    }
+  }
+
   // --- One-time migration for accounts still on the old schema ----------
   // Older docs may still have entries/savingsEntries embedded as arrays on
   // the settings doc itself. Fold them into the new subcollections once,
@@ -1235,7 +1283,7 @@
     pushState,
     upsertEntry, deleteEntry: deleteEntryDoc,
     upsertSaving, deleteSaving: deleteSavingDoc,
-    restoreEntries, restoreSavings,
+    restoreEntries, restoreSavings, mergeLedgerFromBackup,
     signOut: ()=> signOut(auth),
     setOnRemoteState(fn){ settingsChannel.setHandler(fn); },
     setOnEntriesChange(fn){ entriesChannel.setHandler(fn); },
@@ -1282,7 +1330,7 @@
       notePlaceholder:'комментарий (необязательно)', btnCancel:'Отмена', btnStamp:'ПРОБИТЬ ЧЕК', btnRecord:'ЗАПИСАТЬ',
       sectionCurrency:'валюта', sectionForm:'форма',
       newCatPlaceholder:'название статьи, напр. Спортзал', newCurPlaceholder:'напр. PLN, GEL',
-      catMgrDone:'Готово',
+      catMgrDone:'Готово', catMgrAddCat:'+ добавить статью',
       menuHead:'Настройки', menuSync:'Синхронизация',
       menuAccount:'Аккаунт', menuLogout:'Выйти из аккаунта',
       menuCategories:'Статьи', menuCatManage:'Редактировать статьи',
@@ -1320,7 +1368,7 @@
       notePlaceholder:'note (optional)', btnCancel:'Cancel', btnStamp:'RECORD', btnRecord:'RECORD',
       sectionCurrency:'currency', sectionForm:'form',
       newCatPlaceholder:'category name, e.g. Gym', newCurPlaceholder:'e.g. PLN, GEL',
-      catMgrDone:'Done',
+      catMgrDone:'Done', catMgrAddCat:'+ add category',
       menuHead:'Settings', menuSync:'Sync',
       menuAccount:'Account', menuLogout:'Sign out',
       menuCategories:'Categories', menuCatManage:'Edit categories',
@@ -1590,23 +1638,32 @@
       periods, lang: currentLang, theme: (localStorage.getItem('lenta_theme') || 'night')
     };
   }
-  function schedulePush(){
+  // В облако уходят только реально изменённые поля (patch), а не весь блок
+  // настроек. Иначе два устройства затирают правки друг друга: каждое
+  // отправляло полный снимок, и чья запись пришла позже — та и побеждала,
+  // включая поля, которых это устройство вообще не трогало.
+  let pendingPatch = {};
+  function schedulePush(patch){
+    if(patch) Object.assign(pendingPatch, patch);
     if(pushTimer) clearTimeout(pushTimer);
     pushTimer = setTimeout(()=>{
       pushTimer = null;
-      if(!window.LentaCloud || !window.LentaCloud.currentUser) return;
-      window.LentaCloud.pushState(buildStatePayload());
+      if(!window.LentaCloud || !window.LentaCloud.currentUser){ pendingPatch = {}; return; }
+      const toSend = pendingPatch; pendingPatch = {};
+      if(Object.keys(toSend).length) window.LentaCloud.pushState(toSend);
     }, 350);
   }
   // Bypasses the debounce entirely — used after import/reset, and as a
   // safety-net flush when the page is about to be hidden or closed.
-  function pushNow(){
+  function pushNow(patch){
+    if(patch) Object.assign(pendingPatch, patch);
     if(pushTimer){ clearTimeout(pushTimer); pushTimer = null; }
-    if(!window.LentaCloud || !window.LentaCloud.currentUser) return;
-    window.LentaCloud.pushState(buildStatePayload());
+    if(!window.LentaCloud || !window.LentaCloud.currentUser){ pendingPatch = {}; return; }
+    const toSend = pendingPatch; pendingPatch = {};
+    if(Object.keys(toSend).length) window.LentaCloud.pushState(toSend);
   }
   function flushPendingPush(){
-    if(pushTimer) pushNow();
+    if(pushTimer || Object.keys(pendingPatch).length) pushNow();
   }
   document.addEventListener('visibilitychange', ()=>{
     if(document.visibilityState === 'hidden') flushPendingPush();
@@ -1704,13 +1761,13 @@
   function persistEntryDelete(id){ if(window.LentaCloud) window.LentaCloud.deleteEntry(id); }
   function persistSavings(entry){ if(window.LentaCloud) window.LentaCloud.upsertSaving(entry); }
   function persistSavingDelete(id){ if(window.LentaCloud) window.LentaCloud.deleteSaving(id); }
-  function persistCustomCats(){ schedulePush(); }
-  function persistCustomCurrencies(){ schedulePush(); }
-  function persistCatOverrides(){ schedulePush(); }
-  function persistCatHidden(){ schedulePush(); }
-  function persistPeriods(){ schedulePush(); }
-  function persistDisplayCurrency(){ schedulePush(); }
-  function persistLang(){ schedulePush(); }
+  function persistCustomCats(){ schedulePush({ customCats }); }
+  function persistCustomCurrencies(){ schedulePush({ customCurrencies }); }
+  function persistCatOverrides(){ schedulePush({ categoryOverrides }); }
+  function persistCatHidden(){ schedulePush({ categoryHidden }); }
+  function persistPeriods(){ schedulePush({ periods }); }
+  function persistDisplayCurrency(){ schedulePush({ displayCurrency }); }
+  function persistLang(){ schedulePush({ lang: currentLang }); }
 
   function renderPeriodEditor(){
     const startEl = document.getElementById('periodStartInput');
@@ -1738,10 +1795,15 @@
       if(newIso > p.end) return reject();
       if(prev && newIso <= prev.end) return reject();
       p.start = newIso;
+      // Разрыв с предыдущим периодом закрываем сразу: он продлевается до
+      // дня перед новой границей.
+      if(prev && addDaysIso(prev.end, 1) < newIso) prev.end = addDaysIso(newIso, -1);
     }else{
       if(newIso < p.start) return reject();
       if(next && newIso >= next.start) return reject();
       p.end = newIso;
+      // Симметрично: следующий период начинается ровно со дня после новой границы.
+      if(next && addDaysIso(next.start, -1) > newIso) next.start = addDaysIso(newIso, 1);
     }
     persistPeriods();
     renderPeriodEditor();
@@ -2092,12 +2154,29 @@
   // только список истории — чтобы не обрывать анимацию гашения строки.
   function removeSavingsEntry(id, rowEl){
     rowEl.classList.add('voiding');
+    const target = savingsEntries.find(e=>e.id===id);
     savingsEntries = savingsEntries.filter(e=>e.id!==id);
     savingsMap.delete(id);
     persistSavingDelete(id);
+    // Если вклад создан автоматически из статьи «Накопления» в ленте —
+    // удаляем и сам расход, иначе в ленте останется трата «в никуда»
+    // (симметрично removeEntry, который уже убирает связанный вклад).
+    if(target && target.linkedEntryId){
+      const linkedEntry = entries.find(e=>e.id===target.linkedEntryId);
+      if(linkedEntry){
+        entries = entries.filter(e=>e.id!==linkedEntry.id);
+        entriesMap.delete(linkedEntry.id);
+        persistEntryDelete(linkedEntry.id);
+      }
+    }
+    renderMonthLabel();
+    renderWeekStrip();
+    renderMonthSummary();
+    renderExpenseBreakdown();
+    renderIncomeBreakdown();
     renderSavingsGrid();
     renderSavingsConverted();
-    setTimeout(()=>{ renderSavingsHistory(); }, 320);
+    setTimeout(()=>{ renderSavingsHistory(); renderReceipt(); }, 320);
   }
 
   const overlay = document.getElementById('sheetOverlay');
@@ -2443,6 +2522,14 @@
         entry.date = dateIso;
         entriesMap.set(entry.id, entry);
         persistEntries(entry);
+        // Связанный авто-вклад переезжает на ту же дату, иначе в Ленте и в
+        // Накоплениях одна операция окажется под разными числами.
+        const linkedSaving = savingsEntries.find(s=>s.linkedEntryId===entry.id);
+        if(linkedSaving){
+          linkedSaving.date = dateIso;
+          savingsMap.set(linkedSaving.id, linkedSaving);
+          persistSavings(linkedSaving);
+        }
         renderAll();
       }
       close();
@@ -2498,7 +2585,10 @@
   }
 
   document.getElementById('exportBtn').addEventListener('click', ()=>{
-    const payload = JSON.stringify({ entries, customCats, savingsEntries, customCurrencies, periods }, null, 2);
+    const payload = JSON.stringify({
+      entries, savingsEntries, customCats, categoryOverrides, categoryHidden,
+      customCurrencies, displayCurrency, periods, lang: currentLang
+    }, null, 2);
     const blob = new Blob([payload], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2511,46 +2601,102 @@
     markBackupDone();
   });
   document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
+  // --- Восстановление из файла: только ДОБАВЛЯЕТ, ничего не стирает -------
+  // Раньше эта кнопка сначала удаляла всё в облаке, а потом записывала файл,
+  // и старый файл уничтожал всё, что было внесено после него. Теперь:
+  //  • записи из файла, которых в облаке нет, — добавляются;
+  //  • записи, которые уже есть (тот же id), — не трогаются: побеждает облако;
+  //  • повреждённые записи (битая дата, сумма не числом и т.п.) — пропускаются;
+  //  • настройки из файла только дополняют текущие (недостающие статьи,
+  //    валюты, переименования), но ничего не заменяют.
+  function isValidIsoDateStr(v){
+    return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v+'T00:00:00').getTime());
+  }
+  function sanitizeLedgerEntries(list){
+    return list.filter(e=> e && typeof e.id==='string' && e.id
+      && isValidIsoDateStr(e.date) && (e.type==='income'||e.type==='expense')
+      && typeof e.catKey==='string' && e.catKey
+      && Number.isFinite(e.amount) && e.amount>0);
+  }
+  function sanitizeSavingsEntries(list){
+    return list.filter(e=> e && typeof e.id==='string' && e.id
+      && isValidIsoDateStr(e.date) && (e.type==='in'||e.type==='out')
+      && typeof e.currency==='string' && e.currency
+      && (e.form==='cash'||e.form==='noncash')
+      && Number.isFinite(e.amount) && e.amount>0);
+  }
+  // Дополняет текущие настройки тем, чего в них нет. Возвращает patch для облака.
+  function mergeSettingsFromBackup(data){
+    const patch = {};
+    if(data.customCats && typeof data.customCats === 'object'){
+      let changed = false;
+      ['expense','income'].forEach(type=>{
+        const incoming = Array.isArray(data.customCats[type]) ? data.customCats[type] : [];
+        const haveKeys = new Set((customCats[type]||[]).map(c=>c.key));
+        incoming.forEach(c=>{
+          if(c && typeof c.key==='string' && typeof c.label==='string' && !haveKeys.has(c.key)){
+            customCats[type] = [...(customCats[type]||[]), { key:c.key, code: (typeof c.code==='string'&&c.code) ? c.code : genCode(c.label), label:c.label }];
+            haveKeys.add(c.key); changed = true;
+          }
+        });
+      });
+      if(changed) patch.customCats = customCats;
+    }
+    if(data.categoryOverrides && typeof data.categoryOverrides === 'object'){
+      let changed = false;
+      Object.keys(data.categoryOverrides).forEach(key=>{
+        const ov = data.categoryOverrides[key];
+        if(!categoryOverrides[key] && ov && typeof ov.label==='string' && ov.label.trim()){
+          categoryOverrides[key] = { label: ov.label.trim(), code: genCode(ov.label) };
+          changed = true;
+        }
+      });
+      if(changed) patch.categoryOverrides = categoryOverrides;
+    }
+    if(Array.isArray(data.customCurrencies)){
+      const add = data.customCurrencies.filter(c=> typeof c==='string' && /^[A-Z]{3}$/.test(c) && !CURRENCIES.includes(c));
+      if(add.length){
+        customCurrencies = [...customCurrencies, ...add];
+        CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies];
+        patch.customCurrencies = customCurrencies;
+      }
+    }
+    // Скрытые статьи, периоды, валюту отображения и язык из файла не
+    // применяем: это текущие решения, а не данные, и старый файл не должен
+    // молча их откатывать.
+    rebuildCats();
+    return patch;
+  }
+
   document.getElementById('importFile').addEventListener('change', (e)=>{
     const file = e.target.files[0];
     if(!file) return;
     const reader = new FileReader();
-    reader.onload = ()=>{
-      try{
-        const data = JSON.parse(reader.result);
-        // Restoring a backup file is a big, deliberate, explicit one-shot
-        // action the person just chose from a file picker — not a background
-        // sync — so a full replace of the ledger subcollections here is
-        // intentional and safe, unlike the automatic writes elsewhere in the
-        // app which now only ever touch one record at a time.
-        if(Array.isArray(data.entries)){
-          entries = data.entries;
-          entriesMap = new Map(entries.map(e=>[e.id, e]));
-          if(window.LentaCloud) window.LentaCloud.restoreEntries(entries);
-        }
-        if(data.customCats){ customCats = data.customCats; rebuildCats(); }
-        if(Array.isArray(data.savingsEntries)){
-          savingsEntries = data.savingsEntries;
-          savingsMap = new Map(savingsEntries.map(e=>[e.id, e]));
-          if(window.LentaCloud) window.LentaCloud.restoreSavings(savingsEntries);
-        }
-        if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
-        if(Array.isArray(data.periods) && data.periods.length){
-          periods = data.periods.slice();
-          sortPeriods();
-          renderPeriodEditor();
-        }else if(typeof data.periodStartDay === 'number' && data.periodStartDay >= 1 && data.periodStartDay <= 31){
-          // Restoring an old backup file that predates explicit periods.
-          periods = [legacyPeriodRangeFromStartDay(data.periodStartDay, new Date())];
-          renderPeriodEditor();
-        }
-        // Settings (categories/periods/prefs) still go through the small
-        // debounced settings doc — push immediately rather than waiting out
-        // the debounce, same reasoning as above.
-        pushNow();
-        renderAll();
-      }catch(err){ alert('Не получилось прочитать файл резервной копии'); }
+    reader.onload = async ()=>{
       e.target.value = '';
+      let data;
+      try{ data = JSON.parse(reader.result); }
+      catch(err){ alert(currentLang==='ru' ? 'Не получилось прочитать файл резервной копии' : 'Could not read the backup file'); return; }
+      if(!window.LentaCloud || !window.LentaCloud.currentUser || !window.LentaCloud.mergeLedgerFromBackup){
+        alert(currentLang==='ru' ? 'Сначала войди в аккаунт' : 'Please sign in first'); return;
+      }
+      const rawEntries = Array.isArray(data.entries) ? data.entries : [];
+      const rawSavings = Array.isArray(data.savingsEntries) ? data.savingsEntries : [];
+      const cleanEntries = sanitizeLedgerEntries(rawEntries);
+      const cleanSavings = sanitizeSavingsEntries(rawSavings);
+      const broken = (rawEntries.length - cleanEntries.length) + (rawSavings.length - cleanSavings.length);
+      try{
+        const res = await window.LentaCloud.mergeLedgerFromBackup(cleanEntries, cleanSavings);
+        const patch = mergeSettingsFromBackup(data);
+        if(Object.keys(patch).length) pushNow(patch);
+        renderAll();
+        const msg = currentLang==='ru'
+          ? `Готово.\nДобавлено записей: ${res.added}\nУже были в приложении (не тронуты): ${res.existing}` + (broken ? `\nПовреждённых пропущено: ${broken}` : '') + `\n\nНичего из текущих данных не удалено.`
+          : `Done.\nRecords added: ${res.added}\nAlready in the app (left as is): ${res.existing}` + (broken ? `\nCorrupted, skipped: ${broken}` : '') + `\n\nNothing you already had was deleted.`;
+        alert(msg);
+      }catch(err){
+        alert(currentLang==='ru' ? 'Не получилось восстановить до конца: проблема со связью. Ничего из текущих данных не удалено — можно спокойно повторить, уже добавленное не задублируется.' : 'Restore did not finish (connection problem). Nothing you had was deleted — it is safe to try again, nothing will be duplicated.');
+      }
     };
     reader.readAsText(file);
   });
@@ -2736,9 +2882,12 @@
 
   let catMgrType = 'expense';
   const catMgrOverlay = document.getElementById('catMgrSheetOverlay');
+  const EYE_OPEN_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/></svg>';
+  const EYE_CLOSED_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s2.5-4 6-5.7M22 12s-3.5 7-10 7c-1.4 0-2.7-.3-3.9-.8M17.5 18l-2-3M4 19l3.3-4.9M20 19l-3.3-4.9M9.3 6.6L9 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 12S5 5 12 5c1 0 1.9.13 2.8.36" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
   function openCatMgr(){
     catMgrType = 'expense';
     document.querySelectorAll('.catmgr-tabs button').forEach(b=> b.classList.toggle('active', b.dataset.catType==='expense'));
+    hideCatMgrAddRow();
     renderCatMgrList();
     catMgrOverlay.classList.add('open');
     syncOverlaysToVisualViewport();
@@ -2774,7 +2923,7 @@
       hideBtn.type = 'button';
       hideBtn.className = 'catmgr-icon-btn' + (hidden ? '' : ' danger');
       hideBtn.title = hidden ? t('showCat') : t('hideCat');
-      hideBtn.textContent = hidden ? '👁' : '🙈';
+      hideBtn.innerHTML = hidden ? EYE_CLOSED_SVG : EYE_OPEN_SVG;
       hideBtn.addEventListener('click', ()=>{
         if(!hidden){
           const visibleCount = CATS[catMgrType].filter(x=>!categoryHidden.includes(x.key)).length;
@@ -2799,11 +2948,33 @@
     btn.addEventListener('click', ()=>{
       catMgrType = btn.dataset.catType;
       document.querySelectorAll('.catmgr-tabs button').forEach(b=> b.classList.toggle('active', b===btn));
+      hideCatMgrAddRow();
       renderCatMgrList();
     });
   });
   document.getElementById('catMgrCloseBtn').addEventListener('click', closeCatMgr);
   catMgrOverlay.addEventListener('click', (e)=>{ if(e.target===catMgrOverlay) closeCatMgr(); });
+
+  // Добавление статьи прямо в редакторе (раньше — только из формы операции).
+  const catMgrAddToggle = document.getElementById('catMgrAddToggle');
+  const catMgrAddRow = document.getElementById('catMgrAddRow');
+  const catMgrNewInput = document.getElementById('catMgrNewInput');
+  function hideCatMgrAddRow(){ catMgrAddRow.classList.remove('show'); catMgrNewInput.value = ''; }
+  catMgrAddToggle.addEventListener('click', ()=>{
+    const willShow = !catMgrAddRow.classList.contains('show');
+    catMgrAddRow.classList.toggle('show', willShow);
+    if(willShow) setTimeout(()=> catMgrNewInput.focus(), 150);
+  });
+  function confirmCatMgrAdd(){
+    const name = catMgrNewInput.value.trim();
+    if(!name){ catMgrNewInput.focus(); return; }
+    addCustomCategory(catMgrType, name);
+    hideCatMgrAddRow();
+    renderCatMgrList();
+    renderAll();
+  }
+  document.getElementById('catMgrNewConfirm').addEventListener('click', confirmCatMgrAdd);
+  catMgrNewInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); confirmCatMgrAdd(); } });
 
   const drawerOverlay = document.getElementById('drawerOverlay');
   function openDrawer(){ drawerOverlay.classList.add('open'); }
@@ -2824,8 +2995,7 @@
   document.getElementById('openCatMgr').addEventListener('click', ()=>{ closeDrawer(); openCatMgr(); });
   document.getElementById('openThemeFromDrawer').addEventListener('click', ()=>{
     closeDrawer();
-    const fabBtn = document.getElementById('themeFab');
-    if(fabBtn) fabBtn.click();
+    if(window.__openLentaThemeSheet) window.__openLentaThemeSheet();
   });
 
   document.querySelectorAll('#langToggle button').forEach(btn=>{
@@ -2858,7 +3028,7 @@
     // full-collection clear is intentional rather than an accidental
     // background side effect.
     if(window.LentaCloud){ window.LentaCloud.restoreEntries([]); window.LentaCloud.restoreSavings([]); }
-    pushNow(); // settings doc — one-shot action, don't leave it to the debounce
+    pushNow(buildStatePayload()); // settings doc — one-shot action, don't leave it to the debounce
     ['lenta_fxRates','lenta_fxRatesTs','lenta_theme'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
     renderAll();
   });
@@ -2888,19 +3058,12 @@
   </div>
 </div>
 
-<button type="button" class="theme-fab" id="themeFab" aria-label="Выбрать оформление" title="Оформление">
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="12" r="9" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.4"/>
-    <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" fill-opacity=".55"/>
-  </svg>
-</button>
 
 <script>
 (function(){
   "use strict";
   const THEMES = ['night','day','ocean','violet'];
   const root = document.documentElement;
-  const fab = document.getElementById('themeFab');
   const overlay = document.getElementById('themeSheetOverlay');
   const grid = document.getElementById('themeGrid');
   const closeBtn = document.getElementById('themeCloseBtn');
@@ -2930,7 +3093,8 @@
     btn.addEventListener('click', ()=> applyTheme(btn.dataset.themeId));
   });
 
-  fab.addEventListener('click', ()=>{ overlay.classList.add('open'); if(window.__syncSheetOverlays) window.__syncSheetOverlays(); });
+  // Тема открывается только из меню «Оформление» — круглая кнопка в углу убрана.
+  window.__openLentaThemeSheet = ()=>{ overlay.classList.add('open'); if(window.__syncSheetOverlays) window.__syncSheetOverlays(); };
   closeBtn.addEventListener('click', ()=> overlay.classList.remove('open'));
   overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.classList.remove('open'); });
 
