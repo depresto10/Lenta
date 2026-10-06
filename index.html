@@ -384,6 +384,28 @@
   .tab-btn:hover{ border-color: var(--fg-muted); }
   .tab-btn.active{ border-color: var(--gold); background: var(--gold-soft); color: var(--gold); }
 
+  .sav-card .sav-cur{ cursor:pointer; }
+  .sav-card .sav-reorder{ position:absolute; top:10px; right:8px; display:flex; gap:2px; }
+  .sav-card .sav-reorder button{ background:none; border:none; color: var(--fg-muted); cursor:pointer; width:24px; height:24px; display:flex; align-items:center; justify-content:center; padding:0; border-radius:50%; }
+  .sav-card .sav-reorder button:hover{ color: var(--fg); background: var(--surface-hover); }
+  .sav-card .sav-reorder button:disabled{ opacity:.25; cursor:default; background:none; }
+  .add-currency-toggle{ position:relative; z-index:1; display:flex; justify-content:center; margin: -12px 0 14px; }
+  .add-currency-toggle button{ display:inline-flex; align-items:center; gap:6px; height:32px; padding: 0 14px; border-radius:999px; border:1px dashed var(--surface-border-2); background:none; color: var(--fg-muted); font-family:'Onest',sans-serif; font-weight:700; font-size:12px; line-height:1; cursor:pointer; transition: color .15s, border-color .15s; }
+  .add-currency-toggle button:hover{ color: var(--fg); border-color: var(--fg-muted); }
+  /* Выбор валюты списком. Открывается и поверх формы «Внести/Забрать»,
+     поэтому слой выше обычных шторок (у них z-index:10). */
+  #curPickerOverlay{ z-index: 12; }
+  .cur-search{ width:100%; border:none; border-bottom: 1.5px solid var(--text); background:none; outline:none; font-family:'Onest',sans-serif; font-size:16px; line-height:1.4; padding: 6px 2px 8px; color: var(--text); margin-bottom: 6px; }
+  .cur-search::placeholder{ color:#a49c86; }
+  .cur-group-title{ font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.4; letter-spacing:2px; text-transform:uppercase; color: var(--text-soft); margin: 14px 0 4px 2px; }
+  .cur-row{ display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding: 8px 2px; background:none; border:none; border-bottom: 1px dotted var(--paper-line); cursor:pointer; text-align:left; color: var(--text); font-family:'Onest',sans-serif; font-size:14px; line-height:1.4; font-weight:600; }
+  .cur-row:hover{ background: rgba(0,0,0,.04); }
+  .cur-row .c-code{ font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.4; font-weight:700; letter-spacing:.5px; background: var(--text); color: var(--paper); padding:2px 5px; border-radius:3px; flex-shrink:0; min-width:38px; text-align:center; }
+  .cur-row .cur-name{ flex:1; min-width:0; }
+  .cur-row .cur-mark{ font-family:'JetBrains Mono',monospace; font-size:11px; color: var(--text-soft); font-weight:400; flex-shrink:0; }
+  .cur-row.taken{ cursor:default; opacity:.45; }
+  .cur-row.taken:hover{ background:none; }
+  .cur-empty{ font-family:'Onest',sans-serif; font-size:13px; color: var(--text-soft); padding: 14px 2px; }
   .savings-grid{ position:relative; z-index:1; display:grid; grid-template-columns: repeat(2,1fr); gap:10px; margin-bottom: 22px; }
   .sav-card{
     position:relative; overflow:hidden;
@@ -733,6 +755,9 @@
 
     <div class="section-title" data-i18n="sectionBalances">остатки</div>
     <div class="savings-grid" id="savingsGrid"></div>
+    <div class="add-currency-toggle">
+      <button type="button" id="addCurrencyBtn"><span aria-hidden="true">+</span><span data-i18n="addCurrencyBtn">добавить валюту</span></button>
+    </div>
 
     <div class="section-title" data-i18n="sectionConverted">в пересчёте</div>
     <div class="cur-select-row" id="savingsCurrencySelector"></div>
@@ -859,6 +884,19 @@
     </div>
     <div class="sheet-actions">
       <button class="btn-ghost" id="catMgrCloseBtn" style="margin-left:auto;" data-i18n="catMgrDone">Готово</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="curPickerOverlay">
+  <div class="sheet" id="curPickerSheet">
+    <div class="sheet-handle"></div>
+    <h2 id="curPickerTitle">Добавить валюту</h2>
+    <div class="rename-cur-hint" id="curPickerHint" style="display:none;font-family:'Onest',sans-serif;font-size:12px;line-height:1.4;color:var(--text-soft);margin:-8px 0 10px;"></div>
+    <input class="cur-search" id="curSearch" type="text" placeholder="поиск: злотый, PLN…" data-i18n-placeholder="curSearchPlaceholder" autocomplete="off" />
+    <div id="curPickerList"></div>
+    <div class="sheet-actions" style="margin-top:14px;">
+      <button class="btn-ghost" id="curPickerClose" style="margin-left:auto;" data-i18n="btnCancel">Отмена</button>
     </div>
   </div>
 </div>
@@ -1346,7 +1384,11 @@
       catMgrTitle:'Редактировать статьи', catMgrExpense:'Расходы', catMgrIncome:'Доходы',
       sheetIncomeTitle:'Пробить доход', sheetExpenseTitle:'Пробить расход',
       sheetDepositTitle:'Внести в накопления', sheetWithdrawTitle:'Забрать из накоплений',
-      addCustomCat:'+ своя статья', addCustomCur:'+ своя валюта',
+      addCustomCat:'+ своя статья', addCustomCur:'+ валюта',
+      addCurrencyBtn:'добавить валюту', curPickerAdd:'Добавить валюту', curPickerRename:'Заменить валюту', curSearchPlaceholder:'поиск: злотый, PLN…',
+      curGroupMain:'основные', curGroupTravel:'для поездок', curGroupOther:'все остальные', curTaken:'уже есть', curNothing:'ничего не нашлось',
+      curRenameHint:'Выбери, на какую валюту заменить', curRenameBlocked:'Заменить валюту можно, только когда на ней нет денег. Сначала выведи остаток.', curRenameBase:'Основные валюты (BYN, USD, EUR, RUB) заменить нельзя.',
+      moveLeft:'Переместить левее', moveRight:'Переместить правее',
       cashLabel:'Наличные', noncashLabel:'Безналичные',
       confirmReset:'Точно удалить все данные приложения без возможности восстановления? Сделай резервную копию заранее, если нужно.',
       hideConfirm:'Скрыть эту статью? Старые операции с ней останутся видны, но она пропадёт из списка при добавлении новых.',
@@ -1384,7 +1426,11 @@
       catMgrTitle:'Edit categories', catMgrExpense:'Expenses', catMgrIncome:'Income',
       sheetIncomeTitle:'Record income', sheetExpenseTitle:'Record expense',
       sheetDepositTitle:'Deposit to savings', sheetWithdrawTitle:'Withdraw from savings',
-      addCustomCat:'+ custom category', addCustomCur:'+ custom currency',
+      addCustomCat:'+ custom category', addCustomCur:'+ currency',
+      addCurrencyBtn:'add currency', curPickerAdd:'Add currency', curPickerRename:'Replace currency', curSearchPlaceholder:'search: zloty, PLN…',
+      curGroupMain:'main', curGroupTravel:'for travel', curGroupOther:'all others', curTaken:'added', curNothing:'nothing found',
+      curRenameHint:'Pick the currency to replace', curRenameBlocked:'You can replace a currency only when it holds no money. Withdraw the balance first.', curRenameBase:'Main currencies (BYN, USD, EUR, RUB) cannot be replaced.',
+      moveLeft:'Move left', moveRight:'Move right',
       cashLabel:'Cash', noncashLabel:'Non-cash',
       confirmReset:'Delete all app data permanently? Make a backup first if you need one.',
       hideConfirm:'Hide this category? Old entries using it will still show, but it will disappear from the picker for new ones.',
@@ -1445,6 +1491,38 @@
   }
 
   const DEFAULT_CURRENCIES = ['BYN','USD','EUR','RUB'];
+  // Справочник валют для выбора списком — те, по которым НБ РБ публикует
+  // курс (взято с конвертера myfin.by). Выдуманную валюту добавить нельзя:
+  // выбрать можно только отсюда, и у каждой есть курс для пересчёта.
+  // group: main — основные (сверху), travel — популярные для поездок, other — остальные.
+  const CURRENCY_LIST = [
+    ['BYN','белорусский рубль','Belarusian ruble','main'], ['USD','доллар США','US dollar','main'],
+    ['EUR','евро (в т.ч. Литва, Латвия)','euro (incl. Lithuania, Latvia)','main'], ['RUB','российский рубль','Russian ruble','main'],
+    ['UAH','украинская гривна','Ukrainian hryvnia','main'], ['PLN','польский злотый','Polish zloty','main'],
+    ['CZK','чешская крона','Czech koruna','main'], ['CNY','китайский юань','Chinese yuan','main'],
+    ['JPY','японская иена','Japanese yen','main'], ['KRW','южнокорейская вона','South Korean won','main'],
+    ['IDR','индонезийская рупия (Бали)','Indonesian rupiah (Bali)','main'],
+    ['TRY','турецкая лира','Turkish lira','travel'], ['GEL','грузинский лари','Georgian lari','travel'],
+    ['AED','дирхам ОАЭ','UAE dirham','travel'], ['THB','таиландский бат','Thai baht','travel'],
+    ['EGP','египетский фунт','Egyptian pound','travel'], ['VND','вьетнамский донг','Vietnamese dong','travel'],
+    ['KZT','казахстанский тенге','Kazakhstani tenge','travel'], ['AMD','армянский драм','Armenian dram','travel'],
+    ['AZN','азербайджанский манат','Azerbaijani manat','travel'], ['UZS','узбекский сум','Uzbekistani som','travel'],
+    ['GBP','фунт стерлингов','British pound','travel'], ['CHF','швейцарский франк','Swiss franc','travel'],
+    ['AUD','австралийский доллар','Australian dollar','other'], ['BRL','бразильский реал','Brazilian real','other'],
+    ['CAD','канадский доллар','Canadian dollar','other'], ['DKK','датская крона','Danish krone','other'],
+    ['HKD','гонконгский доллар','Hong Kong dollar','other'], ['HUF','венгерский форинт','Hungarian forint','other'],
+    ['INR','индийская рупия','Indian rupee','other'], ['IRR','иранский риал','Iranian rial','other'],
+    ['ISK','исландская крона','Icelandic krona','other'], ['KGS','киргизский сом','Kyrgyzstani som','other'],
+    ['KWD','кувейтский динар','Kuwaiti dinar','other'], ['MDL','молдавский лей','Moldovan leu','other'],
+    ['NOK','норвежская крона','Norwegian krone','other'], ['NZD','новозеландский доллар','New Zealand dollar','other'],
+    ['QAR','катарский риал','Qatari riyal','other'], ['RON','румынский лей','Romanian leu','other'],
+    ['RSD','сербский динар','Serbian dinar','other'], ['SEK','шведская крона','Swedish krona','other'],
+    ['SGD','сингапурский доллар','Singapore dollar','other'], ['TJS','таджикский сомони','Tajikistani somoni','other'],
+    ['TMT','туркменский манат','Turkmenistani manat','other'], ['ZAR','южноафриканский рэнд','South African rand','other'],
+  ].map(([code, ru, en, group])=>({ code, ru, en, group }));
+  const CURRENCY_BY_CODE = new Map(CURRENCY_LIST.map(c=>[c.code, c]));
+  function currencyName(code){ const c = CURRENCY_BY_CODE.get(code); return c ? (currentLang==='en' ? c.en : c.ru) : ''; }
+  let savingsCurrencyOrder = [];
   let customCurrencies = [];
   let CURRENCIES = [...DEFAULT_CURRENCIES];
   function formLabel(form){ return form==='cash' ? t('cashLabel') : t('noncashLabel'); }
@@ -1634,7 +1712,7 @@
   function buildStatePayload(){
     return {
       customCats, categoryOverrides, categoryHidden,
-      customCurrencies, displayCurrency,
+      customCurrencies, displayCurrency, savingsCurrencyOrder,
       periods, lang: currentLang, theme: (localStorage.getItem('lenta_theme') || 'night')
     };
   }
@@ -1682,6 +1760,7 @@
     rebuildCats();
     if(Array.isArray(data.customCurrencies)){ customCurrencies = data.customCurrencies; CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies]; }
     if(data.displayCurrency) displayCurrency = data.displayCurrency;
+    if(Array.isArray(data.savingsCurrencyOrder)) savingsCurrencyOrder = data.savingsCurrencyOrder.filter(c=> typeof c==='string');
     if(Array.isArray(data.periods) && data.periods.length){
       periods = data.periods.slice();
       sortPeriods();
@@ -1768,6 +1847,7 @@
   function persistPeriods(){ schedulePush({ periods }); }
   function persistDisplayCurrency(){ schedulePush({ displayCurrency }); }
   function persistLang(){ schedulePush({ lang: currentLang }); }
+  function persistSavingsCurrencyOrder(){ schedulePush({ savingsCurrencyOrder }); }
 
   function renderPeriodEditor(){
     const startEl = document.getElementById('periodStartInput');
@@ -2076,10 +2156,9 @@
     if(typeof renderSavingsConverted === 'function') renderSavingsConverted();
   };
 
-  function genCurCode(name){ const letters = name.trim().toUpperCase().replace(/[^А-ЯЁA-Z]/g,''); return (letters.slice(0,4) || 'ВАЛ'); }
-
-  function addCustomCurrency(name){
-    const code = genCurCode(name);
+  // Принимает только код из справочника CURRENCY_LIST — свободный ввод убран.
+  function addCustomCurrency(code){
+    if(!CURRENCY_BY_CODE.has(code)) return null;
     if(!CURRENCIES.includes(code)){
       customCurrencies.push(code);
       CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies];
@@ -2099,11 +2178,29 @@
     return Array.from(set);
   }
 
+  // Порядок карточек: сначала сохранённый пользователем, новые — в конце.
+  function orderedCurrenciesInUse(){
+    const inUse = currenciesInUse();
+    const known = savingsCurrencyOrder.filter(c=> inUse.includes(c));
+    return [...known, ...inUse.filter(c=> !known.includes(c))];
+  }
+  function moveSavingsCurrency(cur, dir){
+    const order = orderedCurrenciesInUse();
+    const i = order.indexOf(cur), j = i + dir;
+    if(i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    savingsCurrencyOrder = order;
+    persistSavingsCurrencyOrder();
+    renderSavingsGrid();
+    renderDisplayCurrencyOptions();
+  }
+  const CHEV_L = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
+  const CHEV_R = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
   function renderSavingsGrid(){
     const grid = document.getElementById('savingsGrid');
-    const currencies = currenciesInUse();
+    const currencies = orderedCurrenciesInUse();
     grid.innerHTML = '';
-    currencies.forEach(cur=>{
+    currencies.forEach((cur, idx)=>{
       const cash = savingsBalance(cur,'cash');
       const noncash = savingsBalance(cur,'noncash');
       const total = cash + noncash;
@@ -2111,11 +2208,18 @@
       card.className = 'sav-card';
       card.style.setProperty('--accent', colorForCurrency(cur));
       card.innerHTML = `
-        <span class="sav-cur">${cur}</span>
+        <div class="sav-reorder">
+          <button type="button" class="sav-move-left" title="${t('moveLeft')}" aria-label="${t('moveLeft')}" ${idx===0?'disabled':''}>${CHEV_L}</button>
+          <button type="button" class="sav-move-right" title="${t('moveRight')}" aria-label="${t('moveRight')}" ${idx===currencies.length-1?'disabled':''}>${CHEV_R}</button>
+        </div>
+        <span class="sav-cur" title="${escapeHtml(currencyName(cur))}">${escapeHtml(cur)}</span>
         <div class="sav-row"><span>наличные</span><span>${fmt(cash)}</span></div>
         <div class="sav-row"><span>безналичные</span><span>${fmt(noncash)}</span></div>
         <div class="sav-total"><span>всего</span><span>${fmt(total)}</span></div>
       `;
+      card.querySelector('.sav-move-left').addEventListener('click', ()=> moveSavingsCurrency(cur, -1));
+      card.querySelector('.sav-move-right').addEventListener('click', ()=> moveSavingsCurrency(cur, 1));
+      card.querySelector('.sav-cur').addEventListener('click', ()=> startRenameCurrency(cur));
       grid.appendChild(card);
     });
   }
@@ -2318,28 +2422,84 @@
     addChip.className = 'chip add-custom';
     addChip.type = 'button';
     addChip.textContent = t('addCustomCur');
-    addChip.addEventListener('click', showCustomCurForm);
+    addChip.addEventListener('click', ()=> openCurrencyPicker({ mode:'add', onPick: (code)=>{ savingsCurrency = code; renderSavingsCurrencyChips(); } }));
     savingsCurrencyChips.appendChild(addChip);
   }
 
-  function showCustomCurForm(){
-    savingsCurrencyChips.innerHTML = `
-      <div class="custom-cat-form">
-        <input id="newCurInput" placeholder="напр. PLN, GEL" data-i18n-placeholder="newCurPlaceholder" autocomplete="off" />
-        <button type="button" class="cc-confirm">Добавить</button>
-        <button type="button" class="cc-cancel">Отмена</button>
-      </div>`;
-    const input = document.getElementById('newCurInput');
-    input.focus();
-    savingsCurrencyChips.querySelector('.cc-cancel').addEventListener('click', renderSavingsCurrencyChips);
-    const confirm = ()=>{
-      const name = input.value.trim();
-      if(!name){ input.focus(); return; }
-      savingsCurrency = addCustomCurrency(name);
-      renderSavingsCurrencyChips();
-    };
-    savingsCurrencyChips.querySelector('.cc-confirm').addEventListener('click', confirm);
-    input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); confirm(); } });
+  // --- Выбор валюты из списка (добавление и замена) -----------------------
+  const curPickerOverlay = document.getElementById('curPickerOverlay');
+  const curSearch = document.getElementById('curSearch');
+  let curPickerState = null; // { mode:'add'|'rename', from, onPick }
+  function openCurrencyPicker(state){
+    curPickerState = state;
+    document.getElementById('curPickerTitle').textContent = state.mode==='rename' ? t('curPickerRename') : t('curPickerAdd');
+    const hint = document.getElementById('curPickerHint');
+    if(state.mode==='rename'){ hint.textContent = `${t('curRenameHint')} ${state.from}`; hint.style.display = 'block'; }
+    else hint.style.display = 'none';
+    curSearch.value = '';
+    renderCurrencyPicker();
+    curPickerOverlay.classList.add('open');
+    syncOverlaysToVisualViewport();
+  }
+  function closeCurrencyPicker(){ curPickerOverlay.classList.remove('open'); curPickerState = null; }
+  function renderCurrencyPicker(){
+    const box = document.getElementById('curPickerList');
+    const q = curSearch.value.trim().toLowerCase();
+    const taken = new Set(currenciesInUse());
+    const match = c=> !q || c.code.toLowerCase().includes(q) || c.ru.toLowerCase().includes(q) || c.en.toLowerCase().includes(q);
+    box.innerHTML = '';
+    let shown = 0;
+    [['main','curGroupMain'],['travel','curGroupTravel'],['other','curGroupOther']].forEach(([g, titleKey])=>{
+      const list = CURRENCY_LIST.filter(c=> c.group===g && match(c));
+      if(!list.length) return;
+      const title = document.createElement('div');
+      title.className = 'cur-group-title';
+      title.textContent = t(titleKey);
+      box.appendChild(title);
+      list.forEach(c=>{
+        const isTaken = taken.has(c.code);
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'cur-row' + (isTaken ? ' taken' : '');
+        row.innerHTML = `<span class="c-code">${c.code}</span><span class="cur-name">${escapeHtml(currentLang==='en' ? c.en : c.ru)}</span>${isTaken ? `<span class="cur-mark">${t('curTaken')} ✓</span>` : ''}`;
+        if(!isTaken) row.addEventListener('click', ()=>{
+          const st = curPickerState; closeCurrencyPicker();
+          if(st && st.onPick) st.onPick(c.code);
+        });
+        box.appendChild(row); shown++;
+      });
+    });
+    if(!shown) box.innerHTML = `<div class="cur-empty">${t('curNothing')}</div>`;
+  }
+  curSearch.addEventListener('input', renderCurrencyPicker);
+  document.getElementById('curPickerClose').addEventListener('click', closeCurrencyPicker);
+  curPickerOverlay.addEventListener('click', (e)=>{ if(e.target===curPickerOverlay) closeCurrencyPicker(); });
+
+  // Кнопка «добавить валюту» под остатками.
+  document.getElementById('addCurrencyBtn').addEventListener('click', ()=> openCurrencyPicker({ mode:'add', onPick: (code)=>{
+    addCustomCurrency(code);
+    if(!savingsCurrencyOrder.includes(code)){ savingsCurrencyOrder = [...orderedCurrenciesInUse().filter(c=>c!==code), code]; persistSavingsCurrencyOrder(); }
+    renderSavingsGrid(); renderDisplayCurrencyOptions(); renderSavingsConverted();
+  }}));
+
+  // Замена валюты (нажатие на код на карточке). Разрешена только для
+  // добавленных валют и только если на ней нет денег — иначе «потеряются»
+  // показатели. Все записи истории переводятся на новый код.
+  function startRenameCurrency(from){
+    if(DEFAULT_CURRENCIES.includes(from)){ alert(t('curRenameBase')); return; }
+    const total = savingsBalance(from,'cash') + savingsBalance(from,'noncash');
+    if(total > 0.005){ alert(t('curRenameBlocked')); return; }
+    openCurrencyPicker({ mode:'rename', from, onPick: (to)=>{
+      savingsEntries.forEach(e=>{ if(e.currency===from){ e.currency = to; savingsMap.set(e.id, e); persistSavings(e); } });
+      customCurrencies = customCurrencies.includes(to) ? customCurrencies.filter(c=> c!==from) : customCurrencies.map(c=> c===from ? to : c);
+      CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies];
+      savingsCurrencyOrder = orderedCurrenciesInUse().map(c=> c===from ? to : c).filter((c,i,a)=> a.indexOf(c)===i);
+      if(savingsCurrency === from) savingsCurrency = to;
+      if(displayCurrency === from){ displayCurrency = to; persistDisplayCurrency(); }
+      persistCustomCurrencies();
+      persistSavingsCurrencyOrder();
+      renderSavingsGrid(); renderSavingsHistory(); renderSavingsConverted();
+    }});
   }
 
   function renderSavingsFormChips(){
@@ -2587,7 +2747,7 @@
   document.getElementById('exportBtn').addEventListener('click', ()=>{
     const payload = JSON.stringify({
       entries, savingsEntries, customCats, categoryOverrides, categoryHidden,
-      customCurrencies, displayCurrency, periods, lang: currentLang
+      customCurrencies, savingsCurrencyOrder, displayCurrency, periods, lang: currentLang
     }, null, 2);
     const blob = new Blob([payload], {type:'application/json'});
     const url = URL.createObjectURL(blob);
@@ -2660,6 +2820,10 @@
         CURRENCIES = [...DEFAULT_CURRENCIES, ...customCurrencies];
         patch.customCurrencies = customCurrencies;
       }
+    }
+    if(Array.isArray(data.savingsCurrencyOrder) && !savingsCurrencyOrder.length){
+      savingsCurrencyOrder = data.savingsCurrencyOrder.filter(c=> typeof c==='string');
+      if(savingsCurrencyOrder.length) patch.savingsCurrencyOrder = savingsCurrencyOrder;
     }
     // Скрытые статьи, периоды, валюту отображения и язык из файла не
     // применяем: это текущие решения, а не данные, и старый файл не должен
@@ -2778,7 +2942,7 @@
   }
 
   function renderDisplayCurrencyOptions(){
-    const currencies = currenciesInUse();
+    const currencies = orderedCurrenciesInUse();
     [document.getElementById('savingsCurrencySelector'), document.getElementById('displayCurrencyRow')].forEach(row=>{
       if(!row) return;
       row.innerHTML = '';
@@ -3021,6 +3185,7 @@
     customCats = {expense:[], income:[]}; categoryOverrides = {}; categoryHidden = [];
     savingsEntries = []; savingsMap = new Map();
     customCurrencies = []; CURRENCIES = [...DEFAULT_CURRENCIES];
+    savingsCurrencyOrder = [];
     displayCurrency = 'BYN';
     { const now = new Date(); periods = [{ start: iso(new Date(now.getFullYear(), now.getMonth(), 1)), end: iso(new Date(now.getFullYear(), now.getMonth()+1, 0)) }]; }
     rebuildCats();
